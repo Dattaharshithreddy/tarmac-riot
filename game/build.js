@@ -1,0 +1,12 @@
+const fs = require('fs'), path = require('path');
+const dir = path.join(__dirname, 'src');
+const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js')).sort();
+let body = files.map((f) => '/* ===== ' + f + ' ===== */\n' + fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+const out = "(function (root) {\n'use strict';\n" + body + "\n})(typeof window !== 'undefined' ? window : globalThis);\n";
+fs.mkdirSync(path.join(__dirname, 'dist'), { recursive: true });
+fs.writeFileSync(path.join(__dirname, 'dist', 'game.js'), out);
+console.log('built dist/game.js', out.length, 'bytes from', files.length, 'files');
+const tpl = fs.readFileSync(path.join(__dirname, 'template.html'), 'utf8');
+const html = tpl.replace('/*GAME*/', () => out);
+fs.writeFileSync(path.join(__dirname, 'dist', 'index.html'), html);
+console.log('built dist/index.html', html.length, 'bytes');
