@@ -2,7 +2,7 @@
 const API = {
   TRACKS, BIKES, UPGRADES, WEAPONS, MAXSPEED, SEG, LANES, LANE_X, PLAYER_Z, CAM_DEPTH, ROAD_W, CAM_H, KMH,
   DEFAULT_SAVE, bikeStats, createRace, stepRace, autopilot, applyResults, segAt, buildTrack, rupees, fmtTime, ordinal,
-  createRenderer,
+  createRenderer, createRenderer3D, buildPath3,
   PLAYER_STYLE, COP_STYLE, RIVAL_STYLES, TRAFFIC_TYPES,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;

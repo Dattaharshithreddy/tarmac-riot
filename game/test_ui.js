@@ -19,7 +19,7 @@ ok(!!T && T.S.screen === 'menu', 'boots into the menu');
 ok(d.querySelector('.l2').textContent === 'RIOT', 'title shows');
 click('[data-a="race"]'); ok(T.S.screen === 'tracks', 'RACE opens track select');
 ok(d.querySelectorAll('.card').length === 4 && d.querySelectorAll('.card.lock').length === 3, '4 tracks, 3 locked at start');
-click('[data-a="track"][data-i="0"]'); ok(T.S.screen === 'race' && T.R && T.R.trackIndex === 0, 'tapping a track starts the race');
+click('[data-a="track"][data-i="0"]'); await new Promise((r) => setTimeout(r, 150)); ok(T.S.screen === 'race' && T.R && T.R.trackIndex === 0, 'tapping a track starts the race');
 ok(d.getElementById('controls').style.display === 'block', 'touch controls visible in race');
 // press buttons via pointer events
 const pe = (id, type) => d.getElementById(id).dispatchEvent(new w.Event(type, { bubbles: true }));

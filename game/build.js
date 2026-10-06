@@ -7,6 +7,7 @@ fs.mkdirSync(path.join(__dirname, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, 'dist', 'game.js'), out);
 console.log('built dist/game.js', out.length, 'bytes from', files.length, 'files');
 const tpl = fs.readFileSync(path.join(__dirname, 'template.html'), 'utf8');
-const html = tpl.replace('/*GAME*/', () => out);
+const threeSrc = fs.readFileSync(path.join(__dirname, 'vendor', 'three.min.js'), 'utf8');
+const html = tpl.replace('/*THREE*/', () => threeSrc).replace('/*GAME*/', () => out);
 fs.writeFileSync(path.join(__dirname, 'dist', 'index.html'), html);
 console.log('built dist/index.html', html.length, 'bytes');

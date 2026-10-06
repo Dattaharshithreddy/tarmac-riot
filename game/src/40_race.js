@@ -1,10 +1,10 @@
 /* ---------- race simulation ---------- */
 const START_Z = 2000;
-const TRAFFIC_TYPES = {
-  car:  { w: 0.34, len: 520, spd: [0.34, 0.44] },
-  rick: { w: 0.30, len: 420, spd: [0.20, 0.28] },
-  truck:{ w: 0.44, len: 900, spd: [0.24, 0.31] },
-  bus:  { w: 0.46, len: 900, spd: [0.27, 0.34] },
+const TRAFFIC_TYPES = {      // w and len in road units: 1 unit of x = 9 m, 1 unit of z = 4.5 mm
+  car:  { w: 0.24, len: 960,  spd: [0.34, 0.44] },
+  rick: { w: 0.18, len: 620,  spd: [0.20, 0.28] },
+  truck:{ w: 0.29, len: 1700, spd: [0.24, 0.31] },
+  bus:  { w: 0.30, len: 2400, spd: [0.27, 0.34] },
 };
 const laneOf = (x) => clamp(Math.round((x + 0.75) / 0.5), 0, LANES - 1);
 
@@ -175,6 +175,10 @@ function updatePlayer(R, dt, input) {
     p.speed = clamp(p.speed, 0, MAXSPEED * 1.45);
     if (boosting) p.nitro = Math.max(0, p.nitro - 42 * dt); else p.nitro = Math.min(100, p.nitro + 0.8 * dt);
     p.x = clamp(p.x, -2.2, 2.2);
+    if (R.def.walls && Math.abs(p.x) > 1.12) {        // bridge parapet
+      p.x = sign(p.x) * 1.12; p.steer *= -0.3;
+      if (racing && p.inv <= 0 && p.speed > MAXSPEED * 0.25) { p.speed *= 0.72; p.health -= 6 / R.stats.armor; p.inv = 0.5; R.shake = 9; R.burst = 10; fire(R, 'crash'); if (p.health <= 0) { p.health = 0; startWipe(R, p); } }
+    }
 
     // roadside objects
     if (racing && p.inv <= 0) {

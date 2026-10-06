@@ -43,7 +43,7 @@ const PLAYER_STYLE = { jacket: '#ff6a00', helmet: '#ffd400', bike: '#e5483b' };
 const COP_STYLE = { jacket: '#1c3d8c', helmet: '#f2f2f2', bike: '#f2f2f2', cop: true };
 
 const TRACKS = [
-  { id: 'sealink', name: 'Mumbai Sea Link', sub: 'Sunset run along the bay', segs: 3900, difficulty: 0.90, traffic: 0.8, cops: 1, weather: 'none', wet: 0,
+  { id: 'sealink', name: 'Mumbai Sea Link', sub: 'Sunset run along the bay', segs: 3900, difficulty: 0.90, traffic: 0.8, cops: 1, weather: 'none', wet: 0, walls: true,
     mix: { curve: [2, 3, 4], hill: [0, 15, 25], maxUp: 40, maxDown: 25 }, bg: 'city',
     pal: { skyTop: '#2b1d52', skyMid: '#d9534f', skyBot: '#ffb25c', sun: '#fff0b8', sunX: 0.62, sunY: 0.44, far: '#3a2a5a', mid: '#271b43', ground: '#2c6e49', fog: '#ffc47a',
       grass: ['#2c6e49', '#255f3e'], road: ['#5d5d66', '#56565f'], rumble: ['#e63946', '#f1f1f1'], lane: '#e8e8e8', laneC: '#ffd23f',

@@ -33,6 +33,27 @@ function boot() {
   const S = { screen: 'menu', paused: false, sel: 0, gsel: save.bike, W: 960, H: 540, resetArm: false };
   let R = null, rd = null, attract = null, attractRd = null, attractIdx = -1, last = 0, acc = 0, toastT = 0;
   const env = { makeCanvas: (w, h) => { const c = doc.createElement('canvas'); c.width = w; c.height = h; return c; }, quality: save.quality };
+  // 3D if the phone supports WebGL, otherwise the 2D renderer
+  const c3 = doc.getElementById('c3');
+  let use3D = false;
+  try {
+    if (win.THREE && c3) {
+      const gl3 = new win.THREE.WebGLRenderer({ canvas: c3, antialias: true, powerPreference: 'high-performance' });
+      gl3.setPixelRatio(1); gl3.shadowMap.enabled = true; gl3.shadowMap.type = win.THREE.PCFSoftShadowMap;
+      env.gl3 = gl3; env.aniso = Math.min(8, gl3.capabilities.getMaxAnisotropy ? gl3.capabilities.getMaxAnisotropy() : 1);
+      env.tex = (cv) => new win.THREE.CanvasTexture(cv);
+      use3D = true;
+    }
+  } catch (e) { use3D = false; }
+  if (!use3D && c3) c3.style.display = 'none';
+  const makeRd = (race, old) => {
+    if (old && old.dispose) { try { old.dispose(); } catch (e) { /* ignore */ } }
+    env.quality = save.quality;
+    if (use3D) { env.gl3.shadowMap.enabled = !!save.quality; try { return createRenderer3D(env, race, S.W, S.H); } catch (e) { use3D = false; c3.style.display = 'none'; } }
+    return createRenderer(env, race, S.W, S.H);
+  };
+  const loadingEl = doc.getElementById('loading');
+  const withLoading = (fn) => { loadingEl.classList.add('on'); setTimeout(() => { try { fn(); } finally { loadingEl.classList.remove('on'); } }, 40); };
 
   function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); toastT = 2.2; }
   function computeSize() {
@@ -45,15 +66,21 @@ function boot() {
   function startAttract() {
     attractIdx = (attractIdx + 1) % TRACKS.length;
     attract = createRace(save, attractIdx, { demo: true, seed: Math.floor(Math.random() * 500) });
-    attractRd = createRenderer(env, attract, S.W, S.H);
+    attractRd = makeRd(attract, attractRd);
   }
   function startRace(ti) {
-    R = createRace(save, ti, { seed: Math.floor(Math.random() * 1000) });
-    env.quality = save.quality;
-    rd = createRenderer(env, R, S.W, S.H);
-    S.paused = false; S.sel = ti;
-    for (const k in input) input[k] = false;
-    sound.init(); show('race');
+    sound.init();
+    withLoading(() => {
+      R = createRace(save, ti, { seed: Math.floor(Math.random() * 1000) });
+      rd = makeRd(R, rd);
+      S.paused = false; S.sel = ti;
+      for (const k in input) input[k] = false;
+      show('race');
+    });
+  }
+  function startRaceNow(ti) {
+    R = createRace(save, ti, { seed: Math.floor(Math.random() * 1000) }); rd = makeRd(R, rd);
+    S.paused = false; S.sel = ti; for (const k in input) input[k] = false; show('race');
   }
 
   /* ----- screens ----- */
@@ -135,13 +162,13 @@ function boot() {
     garage() { S.gsel = save.bike; show('garage'); },
     settings() { show('settings'); },
     back() { show(S.screen === 'results' ? 'menu' : 'menu'); },
-    menu() { startAttract(); show('menu'); },
+    menu() { withLoading(() => { startAttract(); show('menu'); }); },
     track(b) { const i = +b.dataset.i; if (i < save.unlocked) startRace(i); },
     next() { startRace(Math.min(R.trackIndex + 1, TRACKS.length - 1)); },
     retry() { startRace(R.trackIndex); },
     restart() { startRace(R.trackIndex); },
     resume() { S.paused = false; show('race'); },
-    quit() { startAttract(); show('menu'); },
+    quit() { withLoading(() => { startAttract(); show('menu'); }); },
     bike(b) { S.gsel = +b.dataset.i; sound.sfx('ui'); show('garage'); },
     equip() { if (save.owned.indexOf(S.gsel) >= 0) { save.bike = S.gsel; writeSave(save); sound.sfx('buy'); show('garage'); } },
     buybike() {
@@ -191,8 +218,8 @@ function boot() {
   win.addEventListener('keydown', (e) => { const k = KEYS[e.key]; if (k) { input[k] = true; sound.init(); e.preventDefault(); } if (e.key === 'Escape' && S.screen === 'race') { S.paused = true; show('pause'); } });
   win.addEventListener('keyup', (e) => { const k = KEYS[e.key]; if (k && k !== 'punchL' && k !== 'punchR') input[k] = false; });
   doc.addEventListener('visibilitychange', () => { if (doc.hidden && S.screen === 'race' && R && R.phase !== 'finished') { S.paused = true; show('pause'); } });
-  win.addEventListener('resize', () => { computeSize(); if (R && rd && (S.screen === 'race' || S.screen === 'pause' || S.screen === 'results')) rd = createRenderer(env, R, S.W, S.H); startAttractKeep(); });
-  function startAttractKeep() { if (attract) attractRd = createRenderer(env, attract, S.W, S.H); }
+  let resizeT = null;
+  win.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { const w0 = S.W, h0 = S.H; computeSize(); if (w0 === S.W && h0 === S.H) return; if (R && rd && (S.screen === 'race' || S.screen === 'pause' || S.screen === 'results')) rd = makeRd(R, rd); if (attract) attractRd = makeRd(attract, attractRd); }, 250); });
 
   /* ----- main loop ----- */
   function handleEvents(r) {
@@ -213,7 +240,7 @@ function boot() {
     } else if (attract && (S.screen === 'menu' || S.screen === 'tracks' || S.screen === 'garage' || S.screen === 'settings')) {
       autopilot(attract, aInput); stepRace(attract, STEP, aInput); attract.events.length = 0;
       sound.drive(0, false, false, false);
-      if (attract.player.z > attract.track.finishZ - 9000) { attractIdx = (attractIdx + 0) % TRACKS.length; startAttract(); }
+      if (attract.player.z > attract.track.finishZ - 9000) { attract.player.z = 6000; attract.rivals.forEach((r, i) => { r.z = 6000 + (i - 3) * 500; r.finished = false; }); attract.traffic.forEach((tr) => { tr.z = 9000 + Math.random() * (attract.track.finishZ - 14000); }); }
     } else if (S.screen === 'results' || S.screen === 'pause') sound.drive(0, false, false, false);
   }
   function frame(ts) {
@@ -231,5 +258,5 @@ function boot() {
   startAttract();
   show('menu');
   win.requestAnimationFrame(frame);
-  win.__TR = { S: S, input: input, get R() { return R; }, get save() { return save; }, get attract() { return attract; }, startRace: startRace, show: show, tick: tick, actions: actions };
+  win.__TR = { S: S, input: input, startRaceNow: startRaceNow, get use3D() { return use3D; }, get R() { return R; }, get save() { return save; }, get attract() { return attract; }, startRace: startRace, show: show, tick: tick, actions: actions };
 }

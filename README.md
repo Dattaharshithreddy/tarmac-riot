@@ -1,6 +1,6 @@
 # Tarmac Riot
 
-Street-racing brawler for phones: race seven rivals on Indian roads, punch them off their bikes, dodge traffic and outrun the police.
+3D street-racing brawler for phones (three.js inside a WebView): race seven rivals on Indian roads, punch them off their bikes, dodge traffic and outrun the police.
 
 ## Tracks
 Mumbai Sea Link (sunset), Ladakh High Pass (snow, hairpins), Thar Desert Highway (heat, trucks), Kerala Monsoon (rain, wet roads). Finish top 3 to unlock the next.

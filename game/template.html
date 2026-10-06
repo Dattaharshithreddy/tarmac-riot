@@ -10,7 +10,11 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#000;color:var(--ink);font-family:var(--font);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:none}
 #app{position:fixed;inset:0;background:#000}
-canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block}
+canvas#c,canvas#c3{position:absolute;inset:0;width:100%;height:100%;display:block}
+#loading{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:2vh;background:rgba(6,8,12,.92);color:var(--y);font:italic 900 6vh var(--font);z-index:15;letter-spacing:.1em}
+#loading.on{display:flex}
+#loading .spin{width:9vh;height:9vh;border-radius:50%;border:1vh solid #2a303d;border-top-color:var(--o);animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
 #ui{position:absolute;inset:0;pointer-events:none}
 #ui .scr{pointer-events:auto}
 .scr{position:absolute;inset:0;display:flex;flex-direction:column;padding:max(2.5vh,env(safe-area-inset-top)) max(3vw,env(safe-area-inset-right)) max(2.5vh,env(safe-area-inset-bottom)) max(3vw,env(safe-area-inset-left))}
@@ -93,7 +97,9 @@ canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block}
 </head>
 <body>
 <div id="app">
+  <canvas id="c3" width="960" height="540"></canvas>
   <canvas id="c" width="960" height="540"></canvas>
+  <div id="loading"><div class="spin"></div>LOADING</div>
   <div id="controls">
     <button class="cb" id="bL" aria-label="Steer left">&#9664;</button>
     <button class="cb" id="bR" aria-label="Steer right">&#9654;</button>
@@ -107,6 +113,9 @@ canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block}
   <div id="toast"></div>
   <div id="rot"><div class="ph"></div>Turn your phone sideways to ride</div>
 </div>
+<script>
+/*THREE*/
+</script>
 <script>
 /*GAME*/
 </script>
