@@ -202,7 +202,16 @@ def build(out, lod=0):
         T = {k: v.copy() for k, v in base.items()}
         for k, v in d.items(): T[k] = V(v)
         return T
+    define_clips(clip, mk, side_pose, Z)
 
+    # leave the rig in rest pose with no active action
+    arm.animation_data.action = None
+    for pb in pbs: pb.rotation_quaternion = Quaternion(); pb.location = V((0, 0, 0))
+    print('TRIS', tri_count(), 'ACTIONS', [a.name for a in bpy.data.actions])
+    export(out, anim=True)
+
+def define_clips(clip, mk, side_pose, Z):
+    """Fight/ride clips as joint targets in this file's J coordinates (re-targeted by rider2.py)."""
     # Ride: subtle breathing / bump loop
     clip('Ride', [(0, mk({}), Z), (8, mk({'head': (0, 0.115, 1.455), 'headtop': (0.01, 0.18, 1.62)}), V((0, 0, -0.008))),
                   (16, mk({}), Z), (24, mk({'headtop': (-0.01, 0.175, 1.625)}), V((0, 0, -0.006))), (32, mk({}), Z)])
@@ -239,11 +248,6 @@ def build(out, lod=0):
     taunt2 = dict(taunt); taunt2.update({'wrist.L': (-0.35, 0.0, 1.62), 'handtip.L': (-0.35, -0.01, 1.70)})
     clip('Taunt', [(0, mk({}), Z), (6, mk(taunt), Z), (12, mk(taunt2), Z), (18, mk(taunt), Z), (24, mk(taunt2), Z), (32, mk({}), Z)])
 
-    # leave the rig in rest pose with no active action
-    arm.animation_data.action = None
-    for pb in pbs: pb.rotation_quaternion = Quaternion(); pb.location = V((0, 0, 0))
-    print('TRIS', tri_count(), 'ACTIONS', [a.name for a in bpy.data.actions])
-    export(out, anim=True)
 
 if __name__ == '__main__':
     build('/home/claude/blender/out/rider.glb')

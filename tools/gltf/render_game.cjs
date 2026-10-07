@@ -16,7 +16,7 @@ const toTex = (cv) => {
   const t = new THREE.DataTexture(out, w, h, THREE.RGBAFormat); t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.encoding = THREE.sRGBEncoding; t.needsUpdate = true; return t;
 };
 const texPlugin = (parser) => ({ name: 'node_textures', loadTexture: async (ti) => {
-  const json = parser.json, tdef = json.textures[ti], img = json.images[tdef.source];
+  const json = parser.json, tdef = json.textures[ti], srcI = tdef.source !== undefined ? tdef.source : (tdef.extensions && tdef.extensions.EXT_texture_webp ? tdef.extensions.EXT_texture_webp.source : 0), img = json.images[srcI];
   const bv = await parser.getDependency('bufferView', img.bufferView);
   const im = await loadImage(Buffer.from(bv));
   const c = createCanvas(im.width, im.height), cx = c.getContext('2d'); cx.drawImage(im, 0, 0);

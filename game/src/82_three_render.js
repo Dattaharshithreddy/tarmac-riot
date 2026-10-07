@@ -191,10 +191,18 @@ function createRenderer3D(env, R, W, H) {
     else g = makeBus(mat, busSide, busRear);
     g.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; }); g.visible = false; scene.add(g); return g;
   });
-  const shadowed = (m) => { m.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; }); return m; };
-  const racerModel = (style, lo) => shadowed(useGLB ? makeRacerGLB(style, { lo: lo }, glowTex) : makeRider(mat, style, glowTex));
+  // real shadow maps only for the player's bike; everyone else gets a soft contact shadow (much cheaper on phones)
+  const blobTex = tex(mk(make, 128, 128, (c) => { const g = c.createRadialGradient(64, 64, 4, 64, 64, 62); g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, 128, 128); }));
+  const blobMat = new T3.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const shadowed = (m, cast) => {
+    const proxied = !!m.userData_proxy;
+    m.traverse((o) => { if (o.isMesh) o.castShadow = q > 0 && cast && (!proxied || o.userData.shadowProxy || o.isSkinnedMesh); });
+    if (useGLB && !(q > 0 && cast)) { const b = new T3.Mesh(new T3.PlaneGeometry(0.9, 2.3), blobMat); b.rotation.x = -Math.PI / 2; b.position.y = 0.02; b.renderOrder = -1; m.add(b); m.userData.blob = b; }
+    return m;
+  };
+  const racerModel = (style, lo, cast) => shadowed(useGLB ? makeRacerGLB(style, { lo: lo, shadowProxy: !!cast }, glowTex) : makeRider(mat, style, glowTex), cast !== false && !useGLB ? true : !!cast);
   const racers3 = R.rivals.map((r) => { const m = racerModel(r.style, true); m.visible = false; scene.add(m); return m; });
-  const player3 = racerModel(Object.assign({}, PLAYER_STYLE, { bike: R.stats.color }), !q); scene.add(player3);
+  const player3 = racerModel(Object.assign({}, PLAYER_STYLE, { bike: R.stats.color }), !q, true); scene.add(player3);
   const cops3 = [0, 1, 2].map(() => { const m = racerModel(COP_STYLE, true); m.visible = false; scene.add(m); return m; });
   const pick3 = R.pickups.map((k) => { const m = makePickup(mat, k.type, glowTex); m.visible = false; scene.add(m); return m; });
   const haz3 = R.hazards.map((h) => { const m = h.type === 'cone' ? makeCone(mat) : makeBarrel(mat); m.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; }); m.visible = false; scene.add(m); return m; });
@@ -209,6 +217,7 @@ function createRenderer3D(env, R, W, H) {
     path.at(r.z, r.x, P);
     const d = m.userData, B = d.bikeG, G = d.riderG, p = R.player;
     m.position.set(P.x, P.y, P.z); m.rotation.set(0, -P.h, 0);
+    if (d.bikeFar) { const far = m.position.distanceToSquared(camPos) > 15 * 15; d.bikeFar.visible = far; d.bikeNear.visible = !far; }
     if (r.state === 'wipe') {
       if (!d.wiping) { d.wiping = true; d.wdir = r.x > 0 ? 1 : -1; playOneShot(d, 'Fall', true); for (const s in d.hands) { d.hands[s].bat.visible = d.hands[s].chain.visible = false; } }
       const t = r.wipeT, k = Math.min(1, t / 0.35), dir = d.wdir;
@@ -267,7 +276,7 @@ function createRenderer3D(env, R, W, H) {
   }
 
   return {
-    W: W, H: H,
+    W: W, H: H, scene: scene,
     resize(w, h) { W = w; H = h; camera.aspect = w / h; camera.updateProjectionMatrix(); },
     draw(ctx, R, o) {
       o = o || {};
@@ -278,6 +287,7 @@ function createRenderer3D(env, R, W, H) {
       R.traffic.forEach((t, i) => {
         const m = traffic3[i]; m.visible = inView(t.z); if (!m.visible) return;
         path.at(t.z, t.x, P); m.position.set(P.x, P.y, P.z); m.rotation.set(0, -P.h, 0);
+        if (m.userData.far) { const f = m.position.distanceToSquared(camPos) > 32 * 32; m.userData.far.visible = f; m.userData.near.visible = !f; }
         const spin = (t.speed * M3 * dt) / m.userData.wr; for (const w of m.userData.wheels) w.rotation.x -= spin;
       });
       const labels = [];

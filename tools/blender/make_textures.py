@@ -36,11 +36,15 @@ def truck_rear(name, base, v):
 
 def truck_side(name, base, v):
     W, H = 1024, 256; im = Image.new('RGB', (W, H), base); d = ImageDraw.Draw(im)
-    for x in range(0, W, 64): d.rectangle([x, 0, x + 6, H - 40], fill=tuple(max(0, c - 40) for c in base))
+    for y in range(0, H - 40, 22): d.rectangle([0, y, W, y + 2], fill=tuple(max(0, c - 45) for c in base))   # wooden planks
+    for x in range(0, W, 128): d.rectangle([x, 0, x + 8, H - 40], fill=(90, 92, 98))                       # steel stanchions
+    for k in range(0, W, 48):
+        d.polygon([(k + 24, 196), (k + 34, 206), (k + 24, 216), (k + 14, 206)], fill=[(242, 183, 5), (31, 169, 122), (217, 56, 43), (255, 255, 255)][(k // 48) % 4])
     bands = [(242, 183, 5), (31, 169, 122), (217, 56, 43)]
     for i, c in enumerate(bands): d.rectangle([0, H - 40 + i * 13, W, H - 27 + i * 13], fill=c)
-    d.rounded_rectangle([300, 60, 724, 160], 16, fill=(250, 246, 235), outline=(20, 20, 20), width=4)
     names = ['SHREE GANESH ROADWAYS', 'JAI MATA DI TRANSPORT', 'NATIONAL CARRIERS', 'SAI BABA LOGISTICS']
+    tw = d.textlength(names[v % 4], font=font(40))
+    d.rounded_rectangle([512 - tw / 2 - 28, 60, 512 + tw / 2 + 28, 160], 16, fill=(250, 246, 235), outline=(20, 20, 20), width=4)
     centered(d, (512, 88), names[v % 4], font(40), (180, 20, 20))
     im.save(D + name)
 

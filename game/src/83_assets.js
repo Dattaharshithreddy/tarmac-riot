@@ -20,7 +20,8 @@ function loadAssets(env, done) {
   for (const n of names) {
     try {
       const loader = new THREE.GLTFLoader();
-      for (const p of env.gltfPlugins || []) loader.register(p);
+      if (THREE.MeshoptDecoder) loader.setMeshoptDecoder(THREE.MeshoptDecoder);
+      for (const p of env.gltfPlugins || []) loader.pluginCallbacks.unshift(p);   // test harness hooks run first
       loader.parse(b64ToArrayBuffer(src[n]), '', (g) => {
         ASSETS.gltf[n] = g;
         g.scene.updateMatrixWorld(true);
@@ -45,7 +46,7 @@ function cloneModel(name, recolor, skinned) {
         const c = recolor[m.name]; if (!c) return m;
         const key = name + '|' + m.name + '|' + c;
         let mm = ASSETS.cache[key];
-        if (!mm) { mm = m.clone(); mm.color = new THREE.Color(c); ASSETS.cache[key] = mm; }
+        if (!mm) { mm = m.clone(); if (m.map && m.roughnessMap) tintMaterial(mm, c); else mm.color = new THREE.Color(c); ASSETS.cache[key] = mm; }
         return mm;
       };
       o.material = Array.isArray(o.material) ? o.material.map(sw) : sw(o.material);
@@ -53,20 +54,35 @@ function cloneModel(name, recolor, skinned) {
   }
   return s;
 }
+// Painted textures carry a 'rider colour' mask in the red channel of the roughness/metal texture:
+// masked pixels are multiplied by the tint, the rest (black panels, white trim, logos) keep their colour.
+function tintMaterial(m, hex) {
+  const tint = new THREE.Color(hex);
+  m.userData.tint = tint;
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.tintColor = { value: tint };
+    sh.fragmentShader = 'uniform vec3 tintColor;\n' + sh.fragmentShader.replace('#include <map_fragment>',
+      '#ifdef USE_MAP\n vec4 sampledDiffuseColor = texture2D( map, vUv );\n float tintMask = 0.0;\n#ifdef USE_ROUGHNESSMAP\n tintMask = texture2D( roughnessMap, vUv ).r;\n#endif\n diffuseColor.rgb *= sampledDiffuseColor.rgb * mix( vec3( 1.0 ), tintColor, tintMask );\n#endif');
+  };
+  m.customProgramCacheKey = () => 'tr-tint';
+  m.needsUpdate = true;
+  return m;
+}
 function findMat(obj, name) { let f = null; obj.traverse((o) => { if (!f && o.isMesh) { const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) if (m.name === name) f = m; } }); return f; }
 function findMeshByMat(obj, name) { let f = null; obj.traverse((o) => { if (!f && o.isMesh && !Array.isArray(o.material) && o.material.name === name) f = o; }); return f; }
 
 const CAR_KINDS = ['sedan', 'hatch', 'suv', 'sedan', 'hatch', 'taxi'];
 function makeTrafficGLB(t, i) {
-  let g;
-  if (t.type === 'car') {
-    const kind = CAR_KINDS[(i * 7 + (t.v | 0)) % CAR_KINDS.length];
-    g = cloneModel(kind, kind === 'taxi' ? null : { CarPaint: t.color });
-  } else if (t.type === 'rick') g = cloneModel('auto');
-  else if (t.type === 'truck') g = cloneModel('truck' + ((t.v | 0) % 3));
-  else g = cloneModel('bus');
-  const root3 = new THREE.Group(); root3.add(g);
-  root3.userData = { wheels: [], wr: 1 };
+  let kind;
+  if (t.type === 'car') kind = CAR_KINDS[(i * 7 + (t.v | 0)) % CAR_KINDS.length];
+  else if (t.type === 'rick') kind = 'auto';
+  else if (t.type === 'truck') kind = 'truck' + ((t.v | 0) % 3);
+  else kind = 'bus';
+  const rc = t.type === 'car' && kind !== 'taxi' ? { CarPaint: t.color } : null;
+  const near = cloneModel(kind, rc), far = ASSETS.gltf[kind + '_far'] ? cloneModel(kind + '_far', rc) : null;
+  const root3 = new THREE.Group(); root3.add(near);
+  if (far) { far.visible = false; root3.add(far); }
+  root3.userData = { wheels: [], wr: 1, near: near, far: far };
   return root3;
 }
 
@@ -77,11 +93,20 @@ function makeRacerGLB(style, opts, glowTex) {
   const bikeG = new T3.Group(); root3.add(bikeG);
   const bike = cloneModel(cop ? 'policebike_lo' : lo ? 'bike_lo' : 'bike', cop ? null : { BodyPaint: style.bike });
   bikeG.add(bike);
+  // far level of detail for rivals and police (swapped by distance in the renderer)
+  let bikeFar = null;
+  if (!lo && opts.shadowProxy && ASSETS.gltf.bike_far) {
+    // the detailed player bike casts its shadow through the cheap far model (invisible in the colour pass)
+    const proxy = cloneModel('bike_far'), pm = new T3.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+    proxy.traverse((o) => { if (o.isMesh) { o.material = pm; o.userData.shadowProxy = true; } });
+    bikeG.add(proxy); root3.userData_proxy = proxy;
+  }
+  if (lo && ASSETS.gltf[cop ? 'policebike_far' : 'bike_far']) { bikeFar = cloneModel(cop ? 'policebike_far' : 'bike_far', cop ? null : { BodyPaint: style.bike }); bikeFar.visible = false; bikeG.add(bikeFar); }
   // rider pivots at the hips so the crash tumble looks right
   const HIP = 1.0, riderG = new T3.Group(); riderG.position.y = HIP; root3.add(riderG);
-  const rider = cloneModel(lo ? 'rider_lo' : 'rider', { Jacket: style.jacket, Helmet: style.helmet }, true);
+  const rider = cloneModel(lo ? 'rider_lo' : 'rider', { Suit: style.jacket, Jacket: style.jacket, Helmet: style.helmet }, true);
   rider.position.y = -HIP; riderG.add(rider);
-  const wheels = []; for (const n of ['WheelF', 'WheelR']) { const w = bike.getObjectByName(n); if (w) wheels.push(w); }
+  const wheels = []; for (const b_ of [bike, bikeFar]) if (b_) for (const n of ['WheelF', 'WheelR']) { const w = b_.getObjectByName(n); if (w) wheels.push(w); }
   // weapons held in the hands (hidden until used)
   const wood = new T3.MeshStandardMaterial({ color: '#8a5a2b', roughness: 0.6 });
   const steel = new T3.MeshStandardMaterial({ color: '#c9ced6', roughness: 0.3, metalness: 0.9 });
@@ -109,7 +134,7 @@ function makeRacerGLB(style, opts, glowTex) {
     bikeG.add(glow);
     siren = { r: r, b: b, glow: glow };
   }
-  root3.userData = { glb: true, wheels: wheels, wr: 0.31, bikeG: bikeG, riderG: riderG, rider: rider, mixer: mixer, acts: acts, hands: hands, siren: siren, os: null, osHold: false, prevAtk: 9, prevHit: 0, tauntCd: 2 + Math.random() * 4 };
+  root3.userData = { glb: true, bikeNear: bike, bikeFar: bikeFar, wheels: wheels, wr: 0.31, bikeG: bikeG, riderG: riderG, rider: rider, mixer: mixer, acts: acts, hands: hands, siren: siren, os: null, osHold: false, prevAtk: 9, prevHit: 0, tauntCd: 2 + Math.random() * 4 };
   return root3;
 }
 
