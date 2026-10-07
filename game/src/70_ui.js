@@ -39,9 +39,9 @@ function boot() {
   try {
     if (win.THREE && c3) {
       const gl3 = new win.THREE.WebGLRenderer({ canvas: c3, antialias: true, powerPreference: 'high-performance' });
-      gl3.setPixelRatio(1); gl3.shadowMap.enabled = true; gl3.shadowMap.type = win.THREE.PCFSoftShadowMap;
+      gl3.setPixelRatio(1); configureGL(gl3); gl3.shadowMap.enabled = true; gl3.shadowMap.type = win.THREE.PCFSoftShadowMap;
       env.gl3 = gl3; env.aniso = Math.min(8, gl3.capabilities.getMaxAnisotropy ? gl3.capabilities.getMaxAnisotropy() : 1);
-      env.tex = (cv) => new win.THREE.CanvasTexture(cv);
+      env.tex = (cv) => { const t = new win.THREE.CanvasTexture(cv); t.encoding = win.THREE.sRGBEncoding; return t; };
       use3D = true;
     }
   } catch (e) { use3D = false; }
@@ -255,8 +255,9 @@ function boot() {
   }
 
   computeSize();
-  startAttract();
-  show('menu');
-  win.requestAnimationFrame(frame);
-  win.__TR = { S: S, input: input, startRaceNow: startRaceNow, get use3D() { return use3D; }, get R() { return R; }, get save() { return save; }, get attract() { return attract; }, startRace: startRace, show: show, tick: tick, actions: actions };
+  const begin = () => { startAttract(); show('menu'); win.requestAnimationFrame(frame); };
+  // decode the Blender models first (3D only); fall back to the built-in models if that fails
+  if (use3D) { loadingEl.classList.add('on'); loadAssets(env, () => { loadingEl.classList.remove('on'); begin(); }); }
+  else begin();
+  win.__TR = { S: S, input: input, get gl() { return env.gl3; }, startRaceNow: startRaceNow, get use3D() { return use3D; }, get R() { return R; }, get save() { return save; }, get attract() { return attract; }, startRace: startRace, show: show, tick: tick, actions: actions };
 }

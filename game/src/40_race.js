@@ -103,7 +103,7 @@ function nearMiss(R) {
 }
 
 function damageRacer(R, r, dmg, side) {
-  r.health -= dmg; r.x = clamp(r.x + side * 0.2, -1.1, 1.1); r.speed *= 0.84; r.hurtT = 0.3;
+  r.health -= dmg; r.x = clamp(r.x + side * 0.2, -1.1, 1.1); r.speed *= 0.84; r.hurtT = 0.3; r.hitN = (r.hitN || 0) + 1; r.hitSide = -side;
   R.shake = Math.max(R.shake, 7); fire(R, 'hit');
   if (r.health <= 0 && r.state === 'ride') {
     startWipe(R, r);
@@ -134,7 +134,7 @@ function rivalAttack(R, r, side) {
   const p = R.player;
   if (p.inv > 0 || p.state !== 'ride' || p.finished) return;
   const dmg = ((7 + r.aggr * 8) * (r.weapon ? 1.6 : 1)) / R.stats.armor;
-  p.health -= dmg; p.x = clamp(p.x + side * 0.07, -2.2, 2.2); p.speed *= 0.93; p.inv = 0.4;
+  p.health -= dmg; p.x = clamp(p.x + side * 0.07, -2.2, 2.2); p.speed *= 0.93; p.inv = 0.4; p.hitN = (p.hitN || 0) + 1; p.hitSide = -side;
   R.shake = Math.max(R.shake, 8); R.flash = Math.max(R.flash, 0.4); fire(R, 'hit'); R.combo = 0;
   if (p.health <= 0) { p.health = 0; startWipe(R, p); }
 }

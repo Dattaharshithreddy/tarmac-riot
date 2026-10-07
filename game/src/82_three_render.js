@@ -37,22 +37,38 @@ function createRenderer3D(env, R, W, H) {
     sc3[i * 3] = tmpC.r; sc3[i * 3 + 1] = tmpC.g; sc3[i * 3 + 2] = tmpC.b;
   }
   skyGeo.setAttribute('color', new T3.BufferAttribute(sc3, 3));
-  skyGroup.add(new T3.Mesh(skyGeo, new T3.MeshBasicMaterial({ vertexColors: true, side: T3.BackSide, fog: false, depthWrite: false })));
-  const sunSprite = new T3.Sprite(new T3.SpriteMaterial({ map: tex(texGlow(make, pal.sun)), color: pal.sun, fog: false, depthWrite: false, transparent: true }));
+  skyGroup.add(new T3.Mesh(skyGeo, new T3.MeshBasicMaterial({ vertexColors: true, side: T3.BackSide, fog: false, depthWrite: false, toneMapped: false })));
+  const sunSprite = new T3.Sprite(new T3.SpriteMaterial({ map: tex(texGlow(make, pal.sun)), color: pal.sun, fog: false, depthWrite: false, transparent: true, toneMapped: false }));
   sunSprite.scale.set(def.id === 'kerala' ? 300 : 420, def.id === 'kerala' ? 300 : 420, 1); sunSprite.position.copy(sunDir.clone().multiplyScalar(1900)); skyGroup.add(sunSprite);
   const cloudTex = tex(texCloud(make));
   for (let i = 0; i < (def.id === 'kerala' ? 40 : 18); i++) {
     const a = rnd() * Math.PI * 2, r = 1300 + rnd() * 600;
-    const s = new T3.Sprite(new T3.SpriteMaterial({ map: cloudTex, color: def.id === 'kerala' ? '#9aa6b0' : '#ffffff', fog: false, depthWrite: false, transparent: true, opacity: def.id === 'kerala' ? 0.9 : 0.6 }));
+    const s = new T3.Sprite(new T3.SpriteMaterial({ map: cloudTex, color: def.id === 'kerala' ? '#9aa6b0' : '#ffffff', fog: false, depthWrite: false, transparent: true, opacity: def.id === 'kerala' ? 0.9 : 0.6, toneMapped: false }));
     s.position.set(Math.cos(a) * r, 180 + rnd() * 360, Math.sin(a) * r); s.scale.set(500 + rnd() * 400, 200 + rnd() * 120, 1); skyGroup.add(s);
   }
   const bd = buildBackdrop(make, def, 900, 540, makeRng(5));
   const ring = (cv, radius, height, yoff, rep) => {
     const t = tex(cv, true); t.repeat.set(rep, 1);
-    const m = new T3.Mesh(new T3.CylinderGeometry(radius, radius, height, 72, 1, true), new T3.MeshBasicMaterial({ map: t, transparent: true, side: T3.BackSide, fog: false, depthWrite: false }));
+    const m = new T3.Mesh(new T3.CylinderGeometry(radius, radius, height, 72, 1, true), new T3.MeshBasicMaterial({ map: t, transparent: true, side: T3.BackSide, fog: false, depthWrite: false, toneMapped: false }));
     m.position.y = yoff; skyGroup.add(m); return m;
   };
   ring(bd.far, 2000, 520, 160, 3); ring(bd.mid, 1800, 330, 70, 4);
+  // image-based lighting from the track's sky so paint, chrome and glass reflect it
+  let envTex = null;
+  try {
+    const pm = new T3.PMREMGenerator(gl), es = new T3.Scene(), eg = new T3.SphereGeometry(10, 32, 16), ep = eg.attributes.position, ec = new Float32Array(ep.count * 3);
+    const cGround = new T3.Color(th.ground === 'water' ? '#2c5a6e' : th.ground === 'sand' ? '#9c7a4a' : th.ground === 'rock' ? '#5d5548' : '#3f6a3a');
+    for (let i = 0; i < ep.count; i++) {
+      const s = ep.getY(i) / 10;
+      if (s > 0.05) tmpC.copy(cMid).lerp(cTop, Math.min(1, (s - 0.05) / 0.7)); else if (s > -0.05) tmpC.copy(cFog); else tmpC.copy(cGround).multiplyScalar(0.7);
+      ec[i * 3] = tmpC.r; ec[i * 3 + 1] = tmpC.g; ec[i * 3 + 2] = tmpC.b;
+    }
+    eg.setAttribute('color', new T3.BufferAttribute(ec, 3));
+    es.add(new T3.Mesh(eg, new T3.MeshBasicMaterial({ vertexColors: true, side: T3.BackSide })));
+    const sunBlob = new T3.Mesh(new T3.SphereGeometry(0.9, 12, 8), new T3.MeshBasicMaterial({ color: new T3.Color(th.sun).multiplyScalar(6) }));
+    sunBlob.position.copy(sunDir).multiplyScalar(8); es.add(sunBlob);
+    envTex = pm.fromScene(es, 0.02).texture; scene.environment = envTex; pm.dispose(); eg.dispose();
+  } catch (e) { envTex = null; }
 
   /* road, kerbs, ground */
   const roadMat = mat('#ffffff', { map: tex(texAsphalt(make, th.wet), true), r: th.wet ? 0.45 : 0.92, m: th.wet ? 0.15 : 0 });
@@ -165,17 +181,21 @@ function createRenderer3D(env, R, W, H) {
   const busSide = tex(mk(make, 512, 128, (c) => { c.fillStyle = '#c62d22'; c.fillRect(0, 0, 512, 128); c.fillStyle = '#f2f2f2'; c.fillRect(0, 70, 512, 18); for (let x = 10; x < 500; x += 46) { c.fillStyle = '#17222d'; c.fillRect(x, 14, 38, 48); c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(x, 14, 12, 48); } c.fillStyle = '#fff'; c.font = 'italic 900 20px ' + FONT; c.fillText('STATE TRANSPORT', 150, 112); }));
   const busRear = tex(mk(make, 256, 256, (c) => { c.fillStyle = '#c62d22'; c.fillRect(0, 0, 256, 256); c.fillStyle = '#17222d'; c.fillRect(24, 30, 208, 90); c.fillStyle = '#ffb300'; c.fillRect(70, 8, 116, 18); c.fillStyle = '#222'; c.font = 'bold 14px ' + FONT; c.textAlign = 'center'; c.fillText('PUNE - GOA', 128, 22); c.fillStyle = '#f2f2f2'; c.fillRect(0, 150, 256, 30); c.fillStyle = '#f2f2f2'; c.fillRect(88, 196, 80, 24); }));
   const truckCols = ['#2f6fb5', '#c0392b', '#e67e22', '#16a085'];
-  const traffic3 = R.traffic.map((t) => {
+  const useGLB = ASSETS.ready;
+  const traffic3 = R.traffic.map((t, i) => {
     let g;
-    if (t.type === 'car') g = makeCar(mat, t.color);
+    if (useGLB) g = makeTrafficGLB(t, i);
+    else if (t.type === 'car') g = makeCar(mat, t.color);
     else if (t.type === 'rick') g = makeRick(mat);
     else if (t.type === 'truck') g = makeTruck(mat, truckCols[t.v % 4], rearTruck(t.v), sideTruck(t.v));
     else g = makeBus(mat, busSide, busRear);
     g.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; }); g.visible = false; scene.add(g); return g;
   });
-  const racers3 = R.rivals.map((r) => { const m = makeRider(mat, r.style, glowTex); m.visible = false; scene.add(m); return m; });
-  const player3 = makeRider(mat, Object.assign({}, PLAYER_STYLE, { bike: R.stats.color }), glowTex); scene.add(player3);
-  const cops3 = [0, 1, 2].map(() => { const m = makeRider(mat, COP_STYLE, glowTex); m.visible = false; scene.add(m); return m; });
+  const shadowed = (m) => { m.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; }); return m; };
+  const racerModel = (style, lo) => shadowed(useGLB ? makeRacerGLB(style, { lo: lo }, glowTex) : makeRider(mat, style, glowTex));
+  const racers3 = R.rivals.map((r) => { const m = racerModel(r.style, true); m.visible = false; scene.add(m); return m; });
+  const player3 = racerModel(Object.assign({}, PLAYER_STYLE, { bike: R.stats.color }), !q); scene.add(player3);
+  const cops3 = [0, 1, 2].map(() => { const m = racerModel(COP_STYLE, true); m.visible = false; scene.add(m); return m; });
   const pick3 = R.pickups.map((k) => { const m = makePickup(mat, k.type, glowTex); m.visible = false; scene.add(m); return m; });
   const haz3 = R.hazards.map((h) => { const m = h.type === 'cone' ? makeCone(mat) : makeBarrel(mat); m.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; }); m.visible = false; scene.add(m); return m; });
 
@@ -184,7 +204,47 @@ function createRenderer3D(env, R, W, H) {
   let lastT = R.time, first = true, zoom = 0;
   const P = {};
 
+  const HIP = 1.0;
+  function poseRacerGLB(m, r, dt, time) {
+    path.at(r.z, r.x, P);
+    const d = m.userData, B = d.bikeG, G = d.riderG, p = R.player;
+    m.position.set(P.x, P.y, P.z); m.rotation.set(0, -P.h, 0);
+    if (r.state === 'wipe') {
+      if (!d.wiping) { d.wiping = true; d.wdir = r.x > 0 ? 1 : -1; playOneShot(d, 'Fall', true); for (const s in d.hands) { d.hands[s].bat.visible = d.hands[s].chain.visible = false; } }
+      const t = r.wipeT, k = Math.min(1, t / 0.35), dir = d.wdir;
+      // bike drops on its side and slides, slowly spinning
+      B.rotation.set(0, dir * 1.1 * (1 - Math.exp(-t * 1.4)), dir * k * 1.42, 'YXZ'); B.position.set(dir * 0.3 * k, 0.33 * k, 0);
+      // rider is thrown forward over the bars, tumbles, lands on his back and slides
+      const fl = Math.min(t, 0.75);
+      const y = t < 0.75 ? HIP + 2.2 * fl - 4.3 * fl * fl : 0.24;
+      const z = t < 0.75 ? -5.5 * t : -(4.125 + 2.6 * (1 - Math.exp(-(t - 0.75) * 2.5)));
+      G.position.set(dir * 0.9 * Math.min(1, t / 0.75), y, z);
+      G.rotation.set(t < 0.75 ? -t * 6.283 : -4.712, dir * 0.5 * Math.min(1, t), t < 0.75 ? dir * t * 0.8 : dir * 0.6, 'YXZ');
+    } else {
+      if (d.wiping) { d.wiping = false; if (d.os) { d.os.stop(); d.os = null; } }
+      const roll = -r.lean * 0.42;
+      B.rotation.set(0, 0, roll); B.position.set(0, 0, 0);
+      G.rotation.set(0, 0, roll); G.position.set(-HIP * Math.sin(roll), HIP * Math.cos(roll), 0);
+      const atk = r.isPlayer ? r.punchT : r.atkT, side = r.isPlayer ? r.punchSide : r.atkSide, hitN = r.hitN || 0;
+      if (atk < d.prevAtk && atk < 0.25) {
+        const S = side > 0 ? 'R' : 'L', w = r.weapon ? r.weapon.type : null;
+        playOneShot(d, w ? 'Swing' + S : !r.isPlayer && Math.random() < 0.33 ? 'Kick' + S : 'Punch' + S);
+        d.wpn = w; d.wpnSide = S;
+      } else if (hitN !== d.prevHit) playOneShot(d, (r.hitSide || 1) > 0 ? 'HitR' : 'HitL');
+      else if (!r.isPlayer && !d.os) {
+        d.tauntCd -= dt;
+        if (d.tauntCd < 0) { d.tauntCd = 5 + Math.random() * 9; if (Math.abs(r.z - p.z) < 2600 && p.state === 'ride') playOneShot(d, 'Taunt'); }
+      }
+      d.prevAtk = atk; d.prevHit = hitN;
+      const swinging = d.os && /^Swing/.test(d.os.getClip().name);
+      for (const s in d.hands) { const h = d.hands[s], on = swinging && d.wpnSide === s; h.bat.visible = on && d.wpn === 'bat'; h.chain.visible = on && d.wpn === 'chain'; }
+    }
+    updateRacerAnim(d, dt);
+    const spin = (r.speed * M3 * dt) / d.wr; for (const w of d.wheels) w.rotation.x -= spin;
+    if (d.siren) { const on = Math.floor(time * 6) % 2; if (d.siren.r) d.siren.r.emissiveIntensity = on ? 4 : 0.2; if (d.siren.b) d.siren.b.emissiveIntensity = on ? 0.2 : 4; d.siren.glow.material.color.set(on ? '#ff3030' : '#3060ff'); }
+  }
   function poseRacer(m, r, dt, time) {
+    if (m.userData.glb) { poseRacerGLB(m, r, dt, time); return; }
     path.at(r.z, r.x, P);
     const d = m.userData;
     m.position.set(P.x, P.y, P.z);
@@ -238,15 +298,16 @@ function createRenderer3D(env, R, W, H) {
       player3.visible = !(p.inv > 0 && p.state === 'ride' && Math.floor(R.time * 16) % 2);
 
       // chase camera that follows the road
-      const behind = path.at(p.z - 1500, clamp(p.x, -1.9, 1.9), {}), ahead = path.at(p.z + 2600, clamp(p.x, -1.9, 1.9) * 0.85, {});
-      const want = new T3.Vector3(behind.x, behind.y + 2.55, behind.z), look = new T3.Vector3(ahead.x, ahead.y + 1.15, ahead.z);
+      // close chase camera (about 4 m behind, 1.9 m up) so the bike and rider fill the frame
+      const behind = path.at(p.z - 900, clamp(p.x, -1.9, 1.9), {}), ahead = path.at(p.z + 2800, clamp(p.x, -1.9, 1.9) * 0.9, {});
+      const want = new T3.Vector3(behind.x, behind.y + 1.9, behind.z), look = new T3.Vector3(ahead.x, ahead.y + 0.95, ahead.z);
       const k = first ? 1 : 1 - Math.exp(-dt * 11);
       camPos.lerp(want, k); camLook.lerp(look, k); if (first) { camPos.copy(want); camLook.copy(look); first = false; }
       camera.position.copy(camPos);
       if (R.shake > 0.5) camera.position.add(new T3.Vector3((Math.random() - 0.5) * R.shake * 0.012, (Math.random() - 0.5) * R.shake * 0.012, 0));
       camera.up.copy(up); camera.lookAt(camLook); camera.rotateZ(-p.lean * 0.05);
       zoom += ((p.boost ? 1 : 0) - zoom) * Math.min(1, dt * 5);
-      camera.fov = 62 + zoom * 13 + (p.speed / MAXSPEED) * 4; camera.updateProjectionMatrix();
+      camera.fov = 60 + zoom * 12 + (p.speed / MAXSPEED) * 5; camera.updateProjectionMatrix();
       skyGroup.position.set(camPos.x, camPos.y, camPos.z);
       sun.target.position.set(player3.position.x, player3.position.y, player3.position.z);
       sun.position.copy(sun.target.position).addScaledVector(sunDir, 120);
@@ -255,10 +316,13 @@ function createRenderer3D(env, R, W, H) {
       overlay.draw(ctx, R, dt, { hud: o.hud, labels: labels });
     },
     dispose() {
+      if (envTex) envTex.dispose();
+      for (const m of [player3].concat(racers3, cops3)) if (m.userData.mixer) m.userData.mixer.stopAllAction();
       scene.traverse((o) => {
-        if (o.geometry) o.geometry.dispose();
+        // models shared with ASSETS stay on the GPU between races
+        if (o.geometry && !o.geometry.userData.keep) o.geometry.dispose();
         const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
-        for (const m of ms) { if (m.map) m.map.dispose(); m.dispose(); }
+        for (const m of ms) { if (m.userData.keep) continue; if (m.map) m.map.dispose(); m.dispose(); }
       });
     },
   };
