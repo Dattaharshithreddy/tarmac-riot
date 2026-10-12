@@ -63,8 +63,9 @@ function createOverlay(R, W, H) {
     const p = R.player, pad = 16 * u;
     text(ctx, ordinal(p.livePlace || 8), pad, pad + 50 * u, 56 * u, '#ffd400');
     text(ctx, '/ ' + (R.rivals.length + 1), pad + ctx.measureText(ordinal(p.livePlace || 8)).width + 8 * u, pad + 50 * u, 22 * u, '#fff');
-    // heat stars
-    const stars = Math.ceil(R.heat / 20);
+    // wanted stars
+    const stars = R.wanted || 0;
+    if (stars > 0) text(ctx, R.cops.some((c) => c.state === 'ride' && !c.giveUp) ? 'WANTED \u2022 POLICE CHASE' : 'WANTED', pad + 128 * u, pad + 77 * u, 14 * u, Math.floor(R.time * 3) % 2 ? '#ff6b6b' : '#69b7ff');
     for (let i = 0; i < 5; i++) {
       const cx = pad + 10 * u + i * 24 * u, cy = pad + 72 * u, ro = 10 * u, ri = 4.4 * u;
       ctx.beginPath();
@@ -93,8 +94,17 @@ function createOverlay(R, W, H) {
     if (p.weapon) text(ctx, WEAPONS[p.weapon.type].label.toUpperCase() + ' x' + p.weapon.uses, W / 2, sy + 52 * u, 20 * u, '#ffd400', 'center');
     // cash this race
     text(ctx, rupees(R.earned), W - 84 * u, pad + 118 * u, 18 * u, '#7CFFB2', 'right', false);
+    // police closing in from behind (the camera looks ahead, so warn the rider)
+    let nearest = null;
+    for (const c of R.cops) if (c.state === 'ride' && !c.giveUp && c.z < p.z - 250 && c.z > p.z - 9000 && (!nearest || c.z > nearest.z)) nearest = c;
+    if (nearest && R.phase === 'race') {
+      const m = Math.round((p.z - nearest.z) * 0.0045), side = nearest.x < p.x - 0.2 ? '\u25E3 ' : nearest.x > p.x + 0.2 ? ' \u25E2' : '';
+      const on = Math.floor(R.time * 4) % 2;
+      fillRR(ctx, W / 2 - 92 * u, H - 54 * u, 184 * u, 30 * u, 15 * u, on ? 'rgba(200,30,30,.75)' : 'rgba(30,70,200,.75)');
+      text(ctx, (nearest.car ? 'POLICE JEEP ' : 'POLICE ') + m + ' m BEHIND' + side, W / 2, H - 33 * u, 16 * u, '#ffffff', 'center');
+    }
     // bust meter
-    if (R.bust > 0.05) { const w2 = W * 0.22; bar(ctx, (W - w2) / 2, H * 0.62, w2, 10 * u, R.bust / 3.2, '#ff5d5d'); text(ctx, 'BUSTING...', W / 2, H * 0.62 - 6 * u, 16 * u, '#ff8a8a', 'center'); }
+    if (R.bust > 0.05) { const w2 = W * 0.22; bar(ctx, (W - w2) / 2, H * 0.62, w2, 10 * u, R.bust / 3, '#ff5d5d'); text(ctx, 'BUSTING...', W / 2, H * 0.62 - 6 * u, 16 * u, '#ff8a8a', 'center'); }
     // popups
     let py = H * 0.28;
     for (const q of R.popups) {

@@ -28,8 +28,8 @@ function boot() {
   const sound = createSound();
   let save = loadSave();
   sound.setMuted(!!save.mute);
-  const input = { left: false, right: false, brake: false, nitro: false, punchL: false, punchR: false };
-  const aInput = { left: false, right: false, brake: false, nitro: false, punchL: false, punchR: false };
+  const input = { left: false, right: false, brake: false, nitro: false, punchL: false, punchR: false, kick: false, kickSide: 0 };
+  const aInput = { left: false, right: false, brake: false, nitro: false, punchL: false, punchR: false, kick: false, kickSide: 0 };
   const S = { screen: 'menu', paused: false, sel: 0, gsel: save.bike, W: 960, H: 540, resetArm: false };
   let R = null, rd = null, attract = null, attractRd = null, attractIdx = -1, last = 0, acc = 0, toastT = 0;
   const env = { makeCanvas: (w, h) => { const c = doc.createElement('canvas'); c.width = w; c.height = h; return c; }, quality: save.quality };
@@ -124,8 +124,9 @@ function boot() {
     settings() {
       return '<div class="scr dimA">' + head('SETTINGS') + '<div class="set"><div class="row"><span>Sound</span><button class="btn small" data-a="mute">' + (save.mute ? 'OFF' : 'ON') + '</button></div>' +
         '<div class="row"><span>Graphics</span><button class="btn small" data-a="quality">' + (save.quality ? 'HIGH' : 'LOW (faster)') + '</button></div>' +
-        '<div class="how"><b>How to play</b><p>\u25C0 \u25B6 steer. Hold <b>NITRO</b> for a speed burst. Tap \uD83D\uDC4A to punch the rider beside you on that side.</p>' +
-        '<p>Take riders down, near-miss traffic and grab pickups for cash and nitro. Hit things and you crash. Cause chaos and the police come: stay clear of them or knock them down.</p>' +
+        '<div class="how"><b>How to play</b><p>\u25C0 \u25B6 steer (tap to nudge, hold to change lanes). Hold <b>NITRO</b> for a burst, <b>BRAKE</b> to scrub speed. Tap \uD83D\uDC4A to punch (or swing your weapon) at the rider on that side, <b>KICK</b> to boot the closest rider sideways, into traffic or the barrier.</p>' +
+        '<p>Knock riders down to steal their chains, bats and iron rods. India drives on the left: oncoming traffic uses the right-hand lanes, so overtake with care.</p>' +
+        '<p>The police only come if you cause an accident or attack them. One star: they try to pull you over. Two: lathis come out. Three: patrol jeeps try to run you off the road. Crash or stop next to a cop and you are BUSTED. Use nitro to get away and stay clear of them for a while to lose the stars.</p>' +
         '<p>Finish in the top 3 to unlock the next race. Spend cash in the garage.</p></div>' +
         '<div class="row"><span>Races ' + save.stats.races + ' \u00B7 Wins ' + save.stats.wins + ' \u00B7 Takedowns ' + save.stats.takedowns + '</span><button class="btn small danger" data-a="reset">' + (S.resetArm ? 'TAP AGAIN TO CONFIRM' : 'RESET PROGRESS') + '</button></div></div></div>';
     },
@@ -211,12 +212,12 @@ function boot() {
     el.addEventListener('pointerdown', (e) => { e.preventDefault(); input[key] = true; el.classList.add('on'); sound.init(); try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } });
     const up = () => el.classList.remove('on'); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   }
-  hold('bL', 'left'); hold('bR', 'right'); hold('bB', 'brake'); hold('bN', 'nitro'); tap('bPL', 'punchL'); tap('bPR', 'punchR');
+  hold('bL', 'left'); hold('bR', 'right'); hold('bB', 'brake'); hold('bN', 'nitro'); tap('bPL', 'punchL'); tap('bPR', 'punchR'); tap('bK', 'kick');
   const pauseBtn = doc.getElementById('bP');
   if (pauseBtn) pauseBtn.addEventListener('click', () => { if (S.screen === 'race' && R && R.phase !== 'finished') { S.paused = true; show('pause'); } });
-  const KEYS = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowDown: 'brake', s: 'brake', S: 'brake', ' ': 'nitro', Shift: 'nitro', z: 'punchL', Z: 'punchL', q: 'punchL', x: 'punchR', X: 'punchR', e: 'punchR' };
+  const KEYS = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowDown: 'brake', s: 'brake', S: 'brake', ' ': 'nitro', Shift: 'nitro', z: 'punchL', Z: 'punchL', q: 'punchL', x: 'punchR', X: 'punchR', e: 'punchR', c: 'kick', C: 'kick', f: 'kick', F: 'kick' };
   win.addEventListener('keydown', (e) => { const k = KEYS[e.key]; if (k) { input[k] = true; sound.init(); e.preventDefault(); } if (e.key === 'Escape' && S.screen === 'race') { S.paused = true; show('pause'); } });
-  win.addEventListener('keyup', (e) => { const k = KEYS[e.key]; if (k && k !== 'punchL' && k !== 'punchR') input[k] = false; });
+  win.addEventListener('keyup', (e) => { const k = KEYS[e.key]; if (k && k !== 'punchL' && k !== 'punchR' && k !== 'kick') input[k] = false; });
   doc.addEventListener('visibilitychange', () => { if (doc.hidden && S.screen === 'race' && R && R.phase !== 'finished') { S.paused = true; show('pause'); } });
   let resizeT = null;
   win.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { const w0 = S.W, h0 = S.H; computeSize(); if (w0 === S.W && h0 === S.H) return; if (R && rd && (S.screen === 'race' || S.screen === 'pause' || S.screen === 'results')) rd = makeRd(R, rd); if (attract) attractRd = makeRd(attract, attractRd); }, 250); });

@@ -92,7 +92,7 @@ function createRenderer(env, R, W, H) {
   function drawRacer(ctx, r, x, baseY, scale, clipY, time) {
     const st = r.style;
     let frame = 'idle', rot = r.lean * 0.3, lift = 0, alpha;
-    const weapon = r.weapon ? r.weapon.type : null;
+    const weapon = r.weapon ? (r.weapon.type === 'chain' ? 'chain' : 'bat') : null;
     let tumble = 0;
     if (r.state === 'wipe') {
       if (r.wipeT < 0.55) { const k = r.wipeT / 0.55; tumble = r.wipeT * 15 * (r.x > 0 ? -1 : 1); rot = 0; lift = Math.sin(k * Math.PI) * 0.55; }
@@ -193,6 +193,9 @@ function createRenderer(env, R, W, H) {
           if (it.k === 't') {
             const img = imgFor(e), wd = SPRITE_W[e.type];
             blit(ctx, img, sx, sy, wd, sc, seg.clip);
+          } else if (it.k === 'r' && e.car) {
+            blit(ctx, S.carFor('#f2f2f2'), sx, sy, SPRITE_W.car, sc, seg.clip);
+            if (e.state === 'ride') { const on = Math.floor(R.time * 6) % 2, rr = sc * ROAD_W * W * 0.06; ctx.fillStyle = on ? 'rgba(255,60,60,.9)' : 'rgba(70,130,255,.9)'; ctx.beginPath(); ctx.arc(sx, sy - rr * 2.2, Math.max(2, rr * 0.4), 0, 7); ctx.fill(); }
           } else if (it.k === 'r') drawRacer(ctx, e, sx, sy, sc, seg.clip, R.time);
           else if (it.k === 'p') { const bob = Math.sin(R.time * 4 + e.z) * 6 * u * (sc / BASE_SCALE); blit(ctx, S.pick[e.type], sx, sy - 20 * u * sc / BASE_SCALE * 0.8 + bob, SPRITE_W.pick, sc, seg.clip); }
           else blit(ctx, e.type === 'cone' ? S.cone : S.barrel, sx, sy, e.type === 'cone' ? SPRITE_W.cone : SPRITE_W.barrel, sc, seg.clip);
@@ -301,7 +304,7 @@ function createRenderer(env, R, W, H) {
     // cash this race
     text(ctx, rupees(R.earned), W - 84 * u, pad + 118 * u, 18 * u, '#7CFFB2', 'right', false);
     // bust meter
-    if (R.bust > 0.05) { const w2 = W * 0.22; bar(ctx, (W - w2) / 2, H * 0.62, w2, 10 * u, R.bust / 3.2, '#ff5d5d'); text(ctx, 'BUSTING...', W / 2, H * 0.62 - 6 * u, 16 * u, '#ff8a8a', 'center'); }
+    if (R.bust > 0.05) { const w2 = W * 0.22; bar(ctx, (W - w2) / 2, H * 0.62, w2, 10 * u, R.bust / 3, '#ff5d5d'); text(ctx, 'BUSTING...', W / 2, H * 0.62 - 6 * u, 16 * u, '#ff8a8a', 'center'); }
     // popups
     let py = H * 0.28;
     for (const q of R.popups) {

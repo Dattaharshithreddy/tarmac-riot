@@ -25,6 +25,7 @@ ok(d.getElementById('controls').style.display === 'block', 'touch controls visib
 const pe = (id, type) => d.getElementById(id).dispatchEvent(new w.Event(type, { bubbles: true }));
 pe('bR', 'pointerdown'); ok(T.input.right === true, 'right button sets steering'); pe('bR', 'pointerup'); ok(T.input.right === false, 'release clears steering');
 pe('bPL', 'pointerdown'); ok(T.input.punchL === true, 'punch button queues a punch');
+pe('bK', 'pointerdown'); ok(T.input.kick === true, 'kick button queues a kick');
 // pause/resume
 d.getElementById('bP').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); ok(T.S.screen === 'pause', 'pause button pauses');
 click('[data-a="resume"]'); ok(T.S.screen === 'race', 'resume returns to race');

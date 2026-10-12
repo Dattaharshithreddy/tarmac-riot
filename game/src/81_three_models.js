@@ -236,11 +236,12 @@ function makeCone(mat) { const T3 = THREE, g = new T3.Group(); addMesh(g, new T3
 function makeBarrel(mat) { const T3 = THREE, g = new T3.Group(); addMesh(g, new T3.CylinderGeometry(0.35, 0.35, 0.95, 14), mat('#d9382b', { r: 0.5 }), 0, 0.48, 0); for (const y of [0.32, 0.64]) addMesh(g, new T3.CylinderGeometry(0.36, 0.36, 0.12, 14), mat('#f3f3f3'), 0, y, 0); return g; }
 function makePickup(mat, type, glowTex) {
   const T3 = THREE, g = new T3.Group(), inner = new T3.Group(); g.add(inner);
-  const col = { cash: '#2fbf71', nitro: '#3b9bff', chain: '#cfd5df', bat: '#c88a4a', repair: '#ff5a5a' }[type];
+  const col = { cash: '#2fbf71', nitro: '#3b9bff', chain: '#cfd5df', bat: '#c88a4a', rod: '#b9c0ca', lathi: '#b08a4a', repair: '#ff5a5a' }[type] || '#ffffff';
   if (type === 'cash') { for (let i = 0; i < 3; i++) addMesh(inner, new T3.BoxGeometry(0.6, 0.12, 0.32), mat('#2fbf71', { e: '#0f6b3a', ei: 0.6 }), 0, i * 0.13, 0); }
   else if (type === 'nitro') { addMesh(inner, new T3.CylinderGeometry(0.2, 0.2, 0.7, 12), mat('#3b9bff', { r: 0.3, m: 0.6, e: '#123d77', ei: 0.7 })); addMesh(inner, new T3.CylinderGeometry(0.08, 0.08, 0.16, 8), mat('#d0d6de', { m: 0.8, r: 0.3 }), 0, 0.42, 0); }
   else if (type === 'repair') { addMesh(inner, new T3.BoxGeometry(0.55, 0.55, 0.2), mat('#ffffff', { e: '#666666', ei: 0.5 })); addMesh(inner, new T3.BoxGeometry(0.42, 0.12, 0.22), mat('#ff2a2a', { e: '#aa0000', ei: 0.6 })); addMesh(inner, new T3.BoxGeometry(0.12, 0.42, 0.22), mat('#ff2a2a', { e: '#aa0000', ei: 0.6 })); }
   else if (type === 'chain') { for (let i = 0; i < 4; i++) addMesh(inner, new T3.TorusGeometry(0.12, 0.035, 6, 12), mat('#cfd5df', { m: 0.8, r: 0.3 }), -0.25 + i * 0.17, 0, 0, 0, i % 2 ? Math.PI / 2 : 0, 0); }
+  else if (type === 'rod') { addMesh(inner, new T3.CylinderGeometry(0.03, 0.03, 1.05, 8), mat('#b9c0ca', { r: 0.3, m: 0.9 }), 0, 0, 0, 0, 0, 0.6); }
   else { addMesh(inner, new T3.CylinderGeometry(0.06, 0.03, 0.95, 8), mat('#c88a4a', { r: 0.6 }), 0, 0, 0, 0, 0, 0.6); }
   const glow = new T3.Sprite(new T3.SpriteMaterial({ map: glowTex, color: col, transparent: true, depthWrite: false, opacity: 0.85 })); glow.scale.set(1.8, 1.8, 1); g.add(glow);
   g.userData.inner = inner; return g;
@@ -311,4 +312,101 @@ function makeRider(mat, style, glowTex) {
   root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   root.userData = { wheels: wheels, arms: arms, rider: rider, bike: bike, siren: siren, wr: 0.36 };
   return root;
+}
+
+/* ----- highway furniture and roadside life ----- */
+// broadleaf roadside tree (neem / banyan style) with the trunk painted white and red like Indian highway trees
+function protoTree(mat, dry, seed) {
+  const T3 = THREE, P = Proto(), r = makeRng(seed), bark = mat('#5b4532', { flat: true }), paint = mat('#efefea'), red = mat('#b8322a');
+  const h = 3.2 + r() * 1.4;
+  P.add(new T3.CylinderGeometry(0.2, 0.3, h, 8), bark, xf(0, h / 2, 0));
+  P.add(new T3.CylinderGeometry(0.31, 0.31, 0.7, 8), paint, xf(0, 0.55, 0)); P.add(new T3.CylinderGeometry(0.315, 0.315, 0.16, 8), red, xf(0, 0.98, 0));
+  for (let k = 0; k < 3; k++) { const a = k * 2.1 + r(); P.add(new T3.CylinderGeometry(0.07, 0.12, 1.8, 6), bark, xf(Math.cos(a) * 0.5, h + 0.4, Math.sin(a) * 0.5, Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6)); }
+  const leaves = dry ? ['#6f7d3a', '#7f8a44', '#5f6d33'] : ['#2f6b2a', '#3a7d33', '#285e25'];
+  for (let k = 0; k < 7; k++) {
+    const a = r() * 6.28, d = k ? 0.9 + r() * 1.2 : 0, s = 1.3 + r() * 0.8;
+    const g = new T3.IcosahedronGeometry(1, 1), pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) { const f = 0.82 + r() * 0.36; pos.setXYZ(i, pos.getX(i) * f, pos.getY(i) * f * 0.72, pos.getZ(i) * f); }
+    g.computeVertexNormals();
+    P.add(g, mat(leaves[k % 3], { flat: true, r: 0.9 }), xf(Math.cos(a) * d, h + 1.3 + r() * 1.1, Math.sin(a) * d, 0, 0, 0, s, s, s));
+  }
+  return P.done();
+}
+// tall Himalayan poplar
+function protoPoplar(mat, seed) {
+  const T3 = THREE, P = Proto(), r = makeRng(seed), h = 9 + r() * 4;
+  P.add(new T3.CylinderGeometry(0.12, 0.2, h * 0.5, 7), mat('#8b8273', { flat: true }), xf(0, h * 0.25, 0));
+  const g = new T3.ConeGeometry(1.25, h * 0.85, 9, 4), pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) { const f = 0.85 + r() * 0.3; pos.setXYZ(i, pos.getX(i) * f, pos.getY(i), pos.getZ(i) * f); }
+  g.computeVertexNormals();
+  P.add(g, mat(seed % 2 ? '#c9a73a' : '#6f8f3a', { flat: true }), xf(0, h * 0.58, 0, 0, 0, 0, 1, 1, 1));
+  return P.done();
+}
+// sign on one or two posts; the face looks down the road at approaching riders (+Z). shape: rect | tri | circle
+function protoSign(mat, tex, w, h, y, shape) {
+  const T3 = THREE, P = Proto(), post = mat('#9aa1a9', { r: 0.4, m: 0.6 }), back = mat('#7b8188', { r: 0.6, m: 0.3 }), face = mat('#ffffff', { map: tex, r: 0.55 });
+  for (const x of w > 2 ? [-w * 0.35, w * 0.35] : [0]) P.add(new T3.CylinderGeometry(0.05, 0.05, y + h / 2, 8), post, xf(x, (y + h / 2) / 2, -0.06));
+  if (shape === 'tri' || shape === 'circle') {
+    const n = shape === 'tri' ? 3 : 28, r = w / 2;
+    P.add(new T3.CircleGeometry(r, n, Math.PI / 2), face, xf(0, y, 0));
+    P.add(new T3.CircleGeometry(r * 1.02, n, Math.PI / 2), back, xf(0, y, -0.03, 0, Math.PI, 0));
+  } else {
+    P.add(new T3.BoxGeometry(w + 0.08, h + 0.08, 0.05), back, xf(0, y, -0.04));
+    P.add(new T3.PlaneGeometry(w, h), face, xf(0, y, 0));
+  }
+  return P.done();
+}
+// roadside dhaba / tea stall with a painted signboard, charpais and a tin roof
+function protoDhaba(mat, tex, v) {
+  const T3 = THREE, P = Proto(), walls = ['#e9d8b4', '#f1c27d', '#cfe3d0', '#f3d6c8'][v % 4];
+  P.add(new T3.BoxGeometry(9, 3.2, 6), mat(walls), xf(0, 1.6, 0));
+  P.add(new T3.BoxGeometry(10, 0.15, 9.5), mat('#8b939b', { r: 0.5, m: 0.5 }), xf(0, 3.35, 1.6, -0.08, 0, 0));
+  for (const x of [-4.6, 0, 4.6]) P.add(new T3.CylinderGeometry(0.08, 0.08, 3.1, 6), mat('#6b4f35'), xf(x, 1.55, 6));
+  P.add(new T3.PlaneGeometry(8, 1.4), mat('#ffffff', { map: tex, r: 0.6 }), xf(0, 4.2, 3.1));
+  P.add(new T3.BoxGeometry(8.2, 1.6, 0.1), mat('#3a2a1c'), xf(0, 4.2, 3.0));
+  P.add(new T3.BoxGeometry(2.0, 2.4, 0.1), mat('#3a2a1c'), xf(-2, 1.2, 3.02));
+  for (let k = 0; k < 3; k++) { P.add(new T3.BoxGeometry(1.0, 0.1, 1.9), mat('#c9a46a'), xf(-3 + k * 2.6, 0.55, 5)); for (const sx of [-0.45, 0.45]) for (const sz of [-0.85, 0.85]) P.add(new T3.BoxGeometry(0.07, 0.5, 0.07), mat('#5b4532'), xf(-3 + k * 2.6 + sx, 0.25, 5 + sz)); }
+  P.add(new T3.CylinderGeometry(0.35, 0.35, 0.9, 10), mat('#2d5fa8'), xf(3.6, 0.45, 4.6));
+  return P.done();
+}
+// fuel station canopy with two pumps
+function protoPump(mat, tex) {
+  const T3 = THREE, P = Proto(), white = mat('#f2f2f2', { r: 0.5 }), band = mat('#ffffff', { map: tex, r: 0.5 }), pillar = mat('#d8dadd', { r: 0.4, m: 0.3 }), pump = mat('#e03a2f', { r: 0.5 });
+  P.add(new T3.BoxGeometry(14, 0.6, 8), white, xf(0, 5.4, 0));
+  P.add(new T3.BoxGeometry(14.05, 0.9, 8.05), band, xf(0, 5.0, 0));
+  for (const x of [-4.5, 4.5]) { P.add(new T3.BoxGeometry(0.5, 4.6, 0.5), pillar, xf(x, 2.3, 0)); P.add(new T3.BoxGeometry(0.8, 1.6, 0.5), pump, xf(x, 0.8, 1.2)); P.add(new T3.BoxGeometry(1.4, 0.15, 2.6), mat('#9aa1a9'), xf(x, 0.08, 1.2)); }
+  P.add(new T3.BoxGeometry(6, 3.2, 4), mat('#e8e2d4'), xf(0, 1.6, -8));
+  P.add(new T3.CylinderGeometry(0.15, 0.15, 7, 8), pillar, xf(8.2, 3.5, 3)); P.add(new T3.BoxGeometry(1.8, 1.8, 0.2), band, xf(8.2, 7.4, 3));
+  return P.done();
+}
+// stone parapet blocks painted yellow and black (mountain roads)
+function protoParapet(mat) {
+  const P = Proto(); P.add(new THREE.BoxGeometry(0.5, 0.6, 1.1), mat('#f2c230', { r: 0.8 }), xf(0, 0.3, 0)); P.add(new THREE.BoxGeometry(0.52, 0.2, 1.12), mat('#1c1c1c'), xf(0, 0.42, 0));
+  return P.done();
+}
+
+/* police jeep built from primitives (used when the Blender models are unavailable) */
+function makePoliceJeep(mat, glowTex, letterTex) {
+  const g = makeCar(mat, '#f4f4f4');
+  addPoliceKit(g, mat, glowTex, 1.46, 1.76, 4.36, null, letterTex);
+  return g;
+}
+/* light bar, stripe and POLICE lettering on any car; top = roof height, w = width, len = length (metres) */
+function addPoliceKit(g, mat, glowTex, top, w, len, make, texFn) {
+  const T3 = THREE, bar = new T3.Group(); bar.position.set(0, top, -len * 0.08); g.add(bar);
+  addMesh(bar, new T3.BoxGeometry(w * 0.7, 0.12, 0.3), mat('#1b1d22', { r: 0.4 }), 0, 0.03, 0);
+  const red = new T3.MeshStandardMaterial({ color: '#ff2a2a', emissive: '#ff0000', emissiveIntensity: 3, roughness: 0.3 });
+  const blue = new T3.MeshStandardMaterial({ color: '#2a5bff', emissive: '#0036ff', emissiveIntensity: 0.2, roughness: 0.3 });
+  addMesh(bar, new T3.BoxGeometry(w * 0.32, 0.14, 0.26), red, -w * 0.17, 0.14, 0); addMesh(bar, new T3.BoxGeometry(w * 0.32, 0.14, 0.26), blue, w * 0.17, 0.14, 0);
+  const glow = new T3.Sprite(new T3.SpriteMaterial({ map: glowTex, color: '#ff3030', transparent: true, depthWrite: false, blending: T3.AdditiveBlending }));
+  glow.scale.set(3.2, 3.2, 1); glow.position.set(0, 0.3, 0); bar.add(glow);
+  for (const s of [-1, 1]) addMesh(g, new T3.BoxGeometry(0.02, 0.16, len * 0.86), mat('#1f4fb3', { r: 0.4 }), s * (w / 2 + 0.01), top * 0.52, 0);
+  if (texFn) {
+    const lettering = texFn();
+    const m = new T3.MeshStandardMaterial({ map: lettering, transparent: true, roughness: 0.5 });
+    for (const s of [-1, 1]) { const pl = new T3.Mesh(new T3.PlaneGeometry(len * 0.42, len * 0.105), m); pl.position.set(s * (w / 2 + 0.02), top * 0.66, 0.2); pl.rotation.y = s * Math.PI / 2; g.add(pl); }
+    const back = new T3.Mesh(new T3.PlaneGeometry(w * 0.6, w * 0.15), m); back.position.set(0, top * 0.62, len / 2 + 0.03); g.add(back);
+  }
+  g.userData.siren = { r: red, b: blue, glow: glow };
+  return g;
 }

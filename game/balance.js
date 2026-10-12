@@ -1,9 +1,10 @@
 const TR = require('./dist/game.js');
+const PEACE = process.argv.includes('--peaceful');
 function run(ti, save, seed) {
   const R = TR.createRace(save, ti, { seed });
   const input = { left: false, right: false, brake: false, nitro: false, punchL: false, punchR: false };
   let f = 0;
-  while (!R.results && f < 60 * 400) { TR.autopilot(R, input); TR.stepRace(R, 1 / 60, input); R.events.length = 0; f++; }
+  while (!R.results && f < 60 * 400) { TR.autopilot(R, input, { peaceful: PEACE }); TR.stepRace(R, 1 / 60, input); R.events.length = 0; f++; }
   return R.results;
 }
 function cfg(name, bike, up) { const s = TR.DEFAULT_SAVE(); s.bike = bike; s.owned = [0, 1, 2, 3]; s.up = {}; for (let i = 0; i < 4; i++) s.up[i] = { e: 0, t: 0, a: 0 }; if (up) s.up[bike] = { e: up, t: up, a: up }; return [name, s]; }

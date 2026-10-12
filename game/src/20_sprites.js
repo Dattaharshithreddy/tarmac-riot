@@ -150,7 +150,7 @@ function barrelSprite(make) {
 }
 function pickupSprite(make, type) {
   return mk(make, 72, 72, (c) => {
-    const col = { cash: '#2fbf71', nitro: '#3b9bff', chain: '#cfd5df', bat: '#c88a4a', repair: '#ff5a5a' }[type];
+    const col = { cash: '#2fbf71', nitro: '#3b9bff', chain: '#cfd5df', bat: '#c88a4a', rod: '#b9c0ca', repair: '#ff5a5a' }[type];
     const rg = c.createRadialGradient(36, 36, 8, 36, 36, 34); rg.addColorStop(0, col); rg.addColorStop(1, 'rgba(0,0,0,0)');
     c.globalAlpha = 0.55; c.fillStyle = rg; c.beginPath(); c.arc(36, 36, 34, 0, 7); c.fill(); c.globalAlpha = 1;
     ellipseFill(c, 36, 36, 24, 24, '#12151b'); c.strokeStyle = col; c.lineWidth = 4; c.beginPath(); c.arc(36, 36, 24, 0, 7); c.stroke();
@@ -158,6 +158,7 @@ function pickupSprite(make, type) {
     if (type === 'cash') { fillRR(c, 20, 26, 32, 20, 3, '#2fbf71'); c.fillStyle = '#0c3'; c.fillStyle = '#e9fff1'; c.font = 'bold 18px ' + FONT; c.textAlign = 'center'; c.fillText('\u20B9', 36, 42); }
     else if (type === 'nitro') { fillRR(c, 27, 22, 18, 28, 5, '#3b9bff'); fillRR(c, 31, 17, 10, 6, 2, '#cfe6ff'); poly(c, [[36, 56], [31, 48], [41, 48]], '#ff9d00'); }
     else if (type === 'chain') { c.strokeStyle = '#cfd5df'; c.lineWidth = 4; for (let i = 0; i < 3; i++) { c.beginPath(); c.ellipse(26 + i * 10, 36 + (i % 2 ? 4 : -4), 8, 5, 0.5, 0, 7); c.stroke(); } }
+    else if (type === 'rod') { c.save(); c.translate(36, 36); c.rotate(0.7); fillRR(c, -2.5, -22, 5, 44, 2, '#b9c0ca'); c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(-1, -20, 1.5, 40); c.restore(); }
     else if (type === 'bat') { c.save(); c.translate(36, 36); c.rotate(0.7); fillRR(c, -6, -22, 12, 12, 5, '#d79a58'); poly(c, [[-5, -14], [5, -14], [3, 20], [-3, 20]], '#c88a4a'); fillRR(c, -3.5, 18, 7, 6, 2, '#6b4423'); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(-2, -18, 2, 30); c.restore(); }
     else { fillRR(c, 28, 20, 16, 32, 3, '#fff'); fillRR(c, 20, 28, 32, 16, 3, '#fff'); fillRR(c, 31, 23, 10, 26, 2, '#ff3b3b'); fillRR(c, 23, 31, 26, 10, 2, '#ff3b3b'); }
   });
@@ -297,7 +298,7 @@ function buildSprites(make, def, rnd) {
   S.bus = busSprite(make);
   S.truckFor = (color, v) => { const k = color + v; if (!S.truck[k]) S.truck[k] = truckSprite(make, color, v); return S.truck[k]; };
   S.cone = coneSprite(make); S.barrel = barrelSprite(make);
-  for (const t of ['cash', 'nitro', 'chain', 'bat', 'repair']) S.pick[t] = pickupSprite(make, t);
+  for (const t of ['cash', 'nitro', 'chain', 'bat', 'rod', 'repair']) S.pick[t] = pickupSprite(make, t);
   const sc = S.scenery;
   for (const t of pal.scenery) {
     sc[t] = [];

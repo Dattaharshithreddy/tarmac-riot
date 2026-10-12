@@ -117,8 +117,10 @@ function makeRacerGLB(style, opts, glowTex) {
     const chain = new T3.Group();
     for (let i = 0; i < 7; i++) { const l = new T3.Mesh(new T3.TorusGeometry(0.035, 0.011, 4, 8), steel); l.position.y = 0.08 + i * 0.065; l.rotation.y = i % 2 ? Math.PI / 2 : 0; chain.add(l); }
     chain.visible = false;
-    if (hb) { hb.add(bat); hb.add(chain); }
-    hands[s] = { bat: bat, chain: chain };
+    const rod = new T3.Mesh(new T3.CylinderGeometry(0.018, 0.018, 1.0, 6), steel); rod.position.y = 0.5; rod.visible = false;
+    const lathi = new T3.Mesh(new T3.CylinderGeometry(0.02, 0.024, 1.15, 6), new T3.MeshStandardMaterial({ color: '#b08a4a', roughness: 0.7 })); lathi.position.y = 0.55; lathi.visible = false;
+    if (hb) { hb.add(bat); hb.add(chain); hb.add(rod); hb.add(lathi); }
+    hands[s] = { bat: bat, chain: chain, rod: rod, lathi: lathi };
   }
   // animation
   const g = ASSETS.gltf[lo ? 'rider_lo' : 'rider'], mixer = new T3.AnimationMixer(rider), acts = {};
@@ -135,6 +137,16 @@ function makeRacerGLB(style, opts, glowTex) {
     siren = { r: r, b: b, glow: glow };
   }
   root3.userData = { glb: true, bikeNear: bike, bikeFar: bikeFar, wheels: wheels, wr: 0.31, bikeG: bikeG, riderG: riderG, rider: rider, mixer: mixer, acts: acts, hands: hands, siren: siren, os: null, osHold: false, prevAtk: 9, prevHit: 0, tauntCd: 2 + Math.random() * 4 };
+  return root3;
+}
+
+/* white SUV in highway-patrol livery */
+function makePoliceJeepGLB(mat, glowTex, letterTex) {
+  const T3 = THREE, root3 = new T3.Group();
+  const near = cloneModel('suv', { CarPaint: '#f2f2f2' }); root3.add(near);
+  const box = new T3.Box3().setFromObject(near), size = box.getSize(new T3.Vector3());
+  addPoliceKit(root3, mat, glowTex, box.max.y, size.x, size.z, null, letterTex);
+  root3.userData = Object.assign(root3.userData, { wheels: [], wr: 1, near: near, far: null, jeep: true });
   return root3;
 }
 

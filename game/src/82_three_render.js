@@ -10,7 +10,7 @@ function createRenderer3D(env, R, W, H) {
   };
   const tex = (cv, rep) => { const t = env.tex(potCanvas(cv)); if (rep) { t.wrapS = t.wrapT = T3.RepeatWrapping; } t.anisotropy = env.aniso || 1; t.needsUpdate = true; return t; };
   const rnd = makeRng(41 + R.trackIndex);
-  const fogFar = th.fogFar * (q ? 1 : 0.7), viewUnits = fogFar / M3;
+  const fogFar = th.fogFar * (q ? 1 : 0.75), viewUnits = fogFar / M3;
   scene.fog = new T3.Fog(pal.fog, th.fogNear, fogFar);
   const camera = new T3.PerspectiveCamera(62, W / H, 0.1, 2600);
   const glowTex = tex(texGlow(make, 'rgba(255,255,255,1)'));
@@ -76,6 +76,7 @@ function createRenderer3D(env, R, W, H) {
   const groundTex = th.ground === 'sand' ? texGround(make, '#d9a45b', '#e8c07e', 'sand') : th.ground === 'rock' ? texGround(make, '#6e6455', '#857a68', 'rock') : th.ground === 'grass' ? texGround(make, '#2f7d3f', '#3f9a4f', 'grass') : texWater(make);
   const groundMat = mat('#ffffff', { map: tex(groundTex, true), r: th.ground === 'water' ? 0.3 : 0.95, m: th.ground === 'water' ? 0.1 : 0 });
   const wallMat = mat('#c9c6bf', { ds: true, r: 0.9 });
+  const railMat = mat('#c3c8cf', { ds: true, r: 0.35, m: 0.75 });
   const lats = [-320, -150, -70, -32, -16, -HALF - 0.9];
   const chunks = [];
   for (let i0 = 0; i0 < N; i0 += CHUNK) {
@@ -92,6 +93,21 @@ function createRenderer3D(env, R, W, H) {
     } else {
       add(ribbonGeo(path, i0, i1, (i) => lats.map((l) => [l, terrainLift(th.terrain, i, l) - 0.04]), 10, 10), groundMat, true);
       add(ribbonGeo(path, i0, i1, (i) => lats.map((l) => [-l, terrainLift(th.terrain, i, -l) - 0.04]).reverse(), 10, 10), groundMat, true);
+    }
+    // galvanised W-beam crash barriers (the Ladakh road gets painted stone blocks instead, placed with the scenery)
+    if (!def.walls && def.id !== 'ladakh') {
+      let a = -1;
+      for (let i = i0; i <= i1; i++) {
+        const on = i < i1 && R.track.segs[i].rail;
+        if (on && a < 0) a = i;
+        if (!on && a >= 0) {
+          if (i - a > 2) for (const sd of [-1, 1]) {
+            const L = sd * (HALF + 1.15);
+            add(ribbonGeo(path, a, i, () => [[L, 0.46], [L, 0.84]], 0, 4), railMat, false);
+          }
+          a = -1;
+        }
+      }
     }
     scene.add(grp); chunks.push({ i0: i0, i1: i1, grp: grp });
   }
@@ -116,6 +132,34 @@ function createRenderer3D(env, R, W, H) {
     c.fillStyle = a[2]; c.fillRect(0, 0, 256, 128); c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(0, 100, 256, 28);
     c.fillStyle = '#fff'; c.textAlign = 'center'; c.font = 'italic 900 52px ' + FONT; c.fillText(a[0], 128, 62); c.font = 'italic 900 30px ' + FONT; c.fillText(a[1], 128, 104);
   })));
+  const towns = def.towns || ['CITY', 'TOWN', 'VILLAGE', 'HIGHWAY'];
+  const signTex = [0, 1, 2, 3].map((v) => tex(mk(make, 512, 256, (c) => {
+    c.fillStyle = '#0d6b3a'; c.fillRect(0, 0, 512, 256); c.strokeStyle = '#ffffff'; c.lineWidth = 8; c.strokeRect(10, 10, 492, 236);
+    c.fillStyle = '#ffffff'; c.textAlign = 'left'; c.font = '800 54px ' + FONT;
+    const a = towns[v % towns.length], b = towns[(v + 1) % towns.length], d1 = 12 + ((v * 37) % 60), d2 = d1 + 40 + ((v * 53) % 90);
+    c.fillText('\u2191 ' + a, 34, 104); c.fillText('\u2192 ' + b, 34, 196); c.textAlign = 'right'; c.fillText(d1 + ' km', 478, 104); c.fillText(d2 + ' km', 478, 196);
+  })));
+  const warnTex = [0, 1].map((v) => tex(mk(make, 256, 256, (c) => {
+    c.fillStyle = '#ffffff'; c.fillRect(0, 0, 256, 256);
+    // triangle laid out to match the uvs of CircleGeometry(r, 3, PI / 2)
+    const T = (a, k) => [128 + Math.cos(a) * 128 * k, 128 - Math.sin(a) * 128 * k];
+    const tri = (k, col) => { c.fillStyle = col; c.beginPath(); for (let j = 0; j < 3; j++) { const q = T(Math.PI / 2 + j * 2.0944, k); c[j ? 'lineTo' : 'moveTo'](q[0], q[1]); } c.closePath(); c.fill(); };
+    tri(1, '#d0201a'); tri(0.62, '#ffffff');
+    const sx = v ? 1 : -1; c.strokeStyle = '#111'; c.lineWidth = 11; c.lineCap = 'round'; c.beginPath();
+    c.moveTo(128 - sx * 10, 168); c.lineTo(128 - sx * 10, 140); c.quadraticCurveTo(128 - sx * 10, 116, 128 + sx * 14, 112); c.stroke();
+    c.fillStyle = '#111'; c.beginPath(); c.moveTo(128 + sx * 30, 111); c.lineTo(128 + sx * 10, 98); c.lineTo(128 + sx * 10, 126); c.closePath(); c.fill();
+  })));
+  const speedTex = tex(mk(make, 256, 256, (c) => {
+    c.fillStyle = '#ffffff'; c.fillRect(0, 0, 256, 256); c.fillStyle = '#d0201a'; c.beginPath(); c.arc(128, 128, 127, 0, 7); c.fill();
+    c.fillStyle = '#ffffff'; c.beginPath(); c.arc(128, 128, 98, 0, 7); c.fill();
+    c.fillStyle = '#111'; c.font = '900 96px ' + FONT; c.textAlign = 'center'; c.fillText(def.id === 'ladakh' ? '40' : '80', 128, 162);
+  }));
+  const dhabaTex = ['PUNJABI DHABA', 'CHAI \u2022 NASHTA', 'SHER-E-PUNJAB', 'HIGHWAY HOTEL'].map((t, v) => tex(mk(make, 512, 96, (c) => {
+    c.fillStyle = ['#f2c230', '#d63a2f', '#1f7a3d', '#2d5fa8'][v]; c.fillRect(0, 0, 512, 96);
+    c.fillStyle = v ? '#ffffff' : '#7a1d10'; c.font = 'italic 900 58px ' + FONT; c.textAlign = 'center'; c.fillText(t, 256, 70);
+  })));
+  const pumpTex = tex(mk(make, 512, 64, (c) => { c.fillStyle = '#1b4fa0'; c.fillRect(0, 0, 512, 64); c.fillStyle = '#f2c230'; c.fillRect(0, 50, 512, 14); c.fillStyle = '#fff'; c.font = '900 40px ' + FONT; c.textAlign = 'center'; c.fillText('FUEL  \u2022  AIR  \u2022  FOOD', 256, 42); }));
+  const policeLetters = tex(mk(make, 256, 64, (c) => { c.clearRect(0, 0, 256, 64); c.fillStyle = '#1f4fb3'; c.font = '900 50px ' + FONT; c.textAlign = 'center'; c.fillText('POLICE', 128, 50); }));
   const protos = {};
   const getProto = (t, v) => {
     const key = t + '|' + v; if (protos[key]) return protos[key];
@@ -126,9 +170,15 @@ function createRenderer3D(env, R, W, H) {
     else if (t === 'flags') p = protoFlags(mat); else if (t === 'chorten') p = protoChorten(mat); else if (t === 'pole') p = protoPole(mat);
     else if (t === 'cactus') p = protoCactus(mat); else if (t === 'fort') p = protoFort(mat); else if (t === 'bush') p = protoBush(mat, pal.dry);
     else if (t === 'house') p = protoHouse(mat, v); else if (t === 'marker') p = protoMarker(mat); else if (t === 'pylon') p = protoPylon(mat);
+    else if (t === 'tree') p = protoTree(mat, pal.dry, 30 + v); else if (t === 'poplar') p = protoPoplar(mat, 50 + v);
+    else if (t === 'sign') p = protoSign(mat, signTex[v % 4], 4.2, 2.1, 4.4, 'rect'); else if (t === 'warn') p = protoSign(mat, warnTex[v % 2], 1.25, 1.25, 2.2, 'tri');
+    else if (t === 'speed') p = protoSign(mat, speedTex, 1.0, 1.0, 2.2, 'circle'); else if (t === 'dhaba') p = protoDhaba(mat, dhabaTex[v % 4], v);
+    else if (t === 'pump') p = protoPump(mat, pumpTex); else if (t === 'parapet') p = protoParapet(mat);
+    else if (t === 'railpost') p = Proto().add(new T3.BoxGeometry(0.12, 0.85, 0.14), mat('#8d939b', { r: 0.4, m: 0.7 }), xf(0, 0.42, 0)).done();
     protos[key] = p; return p;
   };
-  const variants = { building: 4, billboard: 6, rock: 3, house: 4 };
+  const variants = { building: 4, billboard: 6, rock: 3, house: 4, tree: 4, poplar: 2, sign: 4, warn: 2, dhaba: 4 };
+  const FACING = { sign: 1, warn: 1, speed: 1 };   // signs always face approaching riders
   const dummy = new T3.Object3D(), tmp = {};
   for (const ch of chunks) {
     const lists = new Map();
@@ -147,9 +197,14 @@ function createRenderer3D(env, R, W, H) {
           if (!FAR_TYPES[o.t]) place('lamp', 0, i * SEG, sign(o.off) * (HALF + 1.1), side, 1);
           continue;
         }
-        const jitter = o.t === 'palm' || o.t === 'coconut' || o.t === 'rock' || o.t === 'bush' || o.t === 'cactus';
+        const jitter = o.t === 'palm' || o.t === 'coconut' || o.t === 'rock' || o.t === 'bush' || o.t === 'cactus' || o.t === 'tree' || o.t === 'poplar';
         const v = variants[o.t] ? o.v % variants[o.t] : 0;
-        place(o.t, v, i * SEG, o.off * HALF, side + (jitter ? (o.v * 1.7) % 6.28 : 0), jitter ? 0.8 + ((o.v * 37) % 10) / 20 : 1);
+        const yaw = FACING[o.t] ? 0 : o.t === 'dhaba' || o.t === 'pump' ? side - Math.PI / 2 : side + (jitter ? (o.v * 1.7) % 6.28 : 0);
+        place(o.t, v, i * SEG, o.off * HALF, yaw, jitter ? 0.8 + ((o.v * 37) % 10) / 20 : 1);
+      }
+      if (seg.rail && !def.walls) {
+        if (def.id === 'ladakh') { if (i % 3 === 0) { place('parapet', 0, i * SEG, -(HALF + 1.2), 0, 1); place('parapet', 0, i * SEG, HALF + 1.2, 0, 1); } }
+        else if (i % 4 === 0) { place('railpost', 0, i * SEG, -(HALF + 1.2), 0, 1); place('railpost', 0, i * SEG, HALF + 1.2, 0, 1); }
       }
       if (def.id === 'sealink' && (i === Math.floor(N * 0.3) || i === Math.floor(N * 0.62))) place('pylon', 0, i * SEG, 0, 0, 1);
     }
@@ -189,7 +244,16 @@ function createRenderer3D(env, R, W, H) {
     else if (t.type === 'rick') g = makeRick(mat);
     else if (t.type === 'truck') g = makeTruck(mat, truckCols[t.v % 4], rearTruck(t.v), sideTruck(t.v));
     else g = makeBus(mat, busSide, busRear);
-    g.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; }); g.visible = false; scene.add(g); return g;
+    g.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; });
+    // headlights so oncoming traffic is easy to spot from far away
+    if (t.dir < 0) {
+      const bb = new T3.Box3().setFromObject(g), hw = (bb.max.x - bb.min.x) * 0.36, hy = Math.max(0.6, (bb.max.y - bb.min.y) * 0.32);
+      for (const sx of [-1, 1]) {
+        const hl = new T3.Sprite(new T3.SpriteMaterial({ map: glowTex, color: '#fff4cf', transparent: true, depthWrite: false, blending: T3.AdditiveBlending, opacity: def.id === 'kerala' ? 1 : 0.75 }));
+        hl.scale.set(def.id === 'kerala' ? 2.4 : 1.5, def.id === 'kerala' ? 2.4 : 1.5, 1); hl.position.set(sx * hw, hy, bb.min.z - 0.1); g.add(hl);
+      }
+    }
+    g.visible = false; scene.add(g); return g;
   });
   // real shadow maps only for the player's bike; everyone else gets a soft contact shadow (much cheaper on phones)
   const blobTex = tex(mk(make, 128, 128, (c) => { const g = c.createRadialGradient(64, 64, 4, 64, 64, 62); g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, 128, 128); }));
@@ -203,7 +267,20 @@ function createRenderer3D(env, R, W, H) {
   const racerModel = (style, lo, cast) => shadowed(useGLB ? makeRacerGLB(style, { lo: lo, shadowProxy: !!cast }, glowTex) : makeRider(mat, style, glowTex), cast !== false && !useGLB ? true : !!cast);
   const racers3 = R.rivals.map((r) => { const m = racerModel(r.style, true); m.visible = false; scene.add(m); return m; });
   const player3 = racerModel(Object.assign({}, PLAYER_STYLE, { bike: R.stats.color }), !q, true); scene.add(player3);
-  const cops3 = [0, 1, 2].map(() => { const m = racerModel(COP_STYLE, true); m.visible = false; scene.add(m); return m; });
+  const copBikes3 = [0, 1, 2, 3].map(() => { const m = racerModel(COP_STYLE, true); m.visible = false; scene.add(m); return m; });
+  const policeLettersFn = () => policeLetters;
+  const makeJeep = () => { const g = useGLB && ASSETS.gltf.suv ? makePoliceJeepGLB(mat, glowTex, policeLettersFn) : makePoliceJeep(mat, glowTex, policeLettersFn); g.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; }); g.visible = false; scene.add(g); return g; };
+  const copJeeps3 = [0, 1, 2].map(makeJeep);
+  // checkpoint: parked jeep plus a pair of striped barricades
+  const barrier = (g, x, z) => { addMesh(g, new T3.BoxGeometry(1.8, 0.28, 0.08), mat('#d0201a', { r: 0.6 }), x, 0.9, z); addMesh(g, new T3.BoxGeometry(1.8, 0.1, 0.085), mat('#ffffff'), x, 0.9, z); for (const sx of [-0.8, 0.8]) addMesh(g, new T3.BoxGeometry(0.06, 0.9, 0.5), mat('#2b2d33'), x + sx, 0.45, z); };
+  const patrol3 = R.patrols.map(() => { const g = new T3.Group(), j = makeJeep(); j.visible = true; scene.remove(j); j.rotation.y = 0.35; g.add(j); barrier(g, 2.6, -4); barrier(g, 2.6, 4); g.visible = false; scene.add(g); return g; });
+  const copModel = new Map();
+  function modelForCop(c) {
+    let m = copModel.get(c.id); if (m) return m;
+    const pool = c.car ? copJeeps3 : copBikes3, used = new Set(copModel.values());
+    m = pool.find((x) => !used.has(x)); if (m) copModel.set(c.id, m);
+    return m || null;
+  }
   const pick3 = R.pickups.map((k) => { const m = makePickup(mat, k.type, glowTex); m.visible = false; scene.add(m); return m; });
   const haz3 = R.hazards.map((h) => { const m = h.type === 'cone' ? makeCone(mat) : makeBarrel(mat); m.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; }); m.visible = false; scene.add(m); return m; });
 
@@ -212,6 +289,19 @@ function createRenderer3D(env, R, W, H) {
   let lastT = R.time, first = true, zoom = 0;
   const P = {};
 
+  function flashSiren(sr, time) {
+    if (!sr) return; const on = Math.floor(time * 5) % 2;
+    sr.r.emissiveIntensity = on ? 4 : 0.15; sr.b.emissiveIntensity = on ? 0.15 : 4; sr.glow.material.color.set(on ? '#ff3030' : '#3060ff');
+  }
+  function poseJeep(m, c, dt, time) {
+    path.at(c.z, c.x, P);
+    m.position.set(P.x, P.y, P.z);
+    let yaw = -P.h - c.lean * 0.12, roll = 0;
+    if (c.state === 'wipe') { const k = 1 - Math.exp(-c.wipeT * 1.8); yaw += (c.x > 0 ? 1 : -1) * 2.4 * k; roll = (c.x > 0 ? 1 : -1) * 0.12 * Math.sin(Math.min(1, c.wipeT) * Math.PI); }
+    m.rotation.set(0, yaw, roll, 'YXZ');
+    if (m.userData.far) { const f = m.position.distanceToSquared(camPos) > 32 * 32; m.userData.far.visible = f; m.userData.near.visible = !f; }
+    if (c.state === 'ride') flashSiren(m.userData.siren, time); else if (m.userData.siren) { m.userData.siren.r.emissiveIntensity = 0.1; m.userData.siren.b.emissiveIntensity = 0.1; }
+  }
   const HIP = 1.0;
   function poseRacerGLB(m, r, dt, time) {
     path.at(r.z, r.x, P);
@@ -219,7 +309,7 @@ function createRenderer3D(env, R, W, H) {
     m.position.set(P.x, P.y, P.z); m.rotation.set(0, -P.h, 0);
     if (d.bikeFar) { const far = m.position.distanceToSquared(camPos) > 15 * 15; d.bikeFar.visible = far; d.bikeNear.visible = !far; }
     if (r.state === 'wipe') {
-      if (!d.wiping) { d.wiping = true; d.wdir = r.x > 0 ? 1 : -1; playOneShot(d, 'Fall', true); for (const s in d.hands) { d.hands[s].bat.visible = d.hands[s].chain.visible = false; } }
+      if (!d.wiping) { d.wiping = true; d.wdir = r.x > 0 ? 1 : -1; playOneShot(d, 'Fall', true); for (const s in d.hands) { const h = d.hands[s]; h.bat.visible = h.chain.visible = h.rod.visible = h.lathi.visible = false; } }
       const t = r.wipeT, k = Math.min(1, t / 0.35), dir = d.wdir;
       // bike drops on its side and slides, slowly spinning
       B.rotation.set(0, dir * 1.1 * (1 - Math.exp(-t * 1.4)), dir * k * 1.42, 'YXZ'); B.position.set(dir * 0.3 * k, 0.33 * k, 0);
@@ -230,14 +320,14 @@ function createRenderer3D(env, R, W, H) {
       G.position.set(dir * 0.9 * Math.min(1, t / 0.75), y, z);
       G.rotation.set(t < 0.75 ? -t * 6.283 : -4.712, dir * 0.5 * Math.min(1, t), t < 0.75 ? dir * t * 0.8 : dir * 0.6, 'YXZ');
     } else {
-      if (d.wiping) { d.wiping = false; if (d.os) { d.os.stop(); d.os = null; } }
+      if (d.wiping) { d.wiping = false; if (d.os) { d.os.stop(); d.os = null; } for (const s in d.hands) { const h = d.hands[s]; h.bat.visible = h.chain.visible = h.rod.visible = h.lathi.visible = false; } }
       const roll = -r.lean * 0.42;
       B.rotation.set(0, 0, roll); B.position.set(0, 0, 0);
       G.rotation.set(0, 0, roll); G.position.set(-HIP * Math.sin(roll), HIP * Math.cos(roll), 0);
       const atk = r.isPlayer ? r.punchT : r.atkT, side = r.isPlayer ? r.punchSide : r.atkSide, hitN = r.hitN || 0;
       if (atk < d.prevAtk && atk < 0.25) {
-        const S = side > 0 ? 'R' : 'L', w = r.weapon ? r.weapon.type : null;
-        playOneShot(d, w ? 'Swing' + S : !r.isPlayer && Math.random() < 0.33 ? 'Kick' + S : 'Punch' + S);
+        const S = side > 0 ? 'R' : 'L', kind = r.isPlayer ? r.punchKind : r.atkKind, w = kind === 'kick' ? null : r.weapon ? r.weapon.type : null;
+        playOneShot(d, kind === 'kick' ? 'Kick' + S : w ? 'Swing' + S : 'Punch' + S);
         d.wpn = w; d.wpnSide = S;
       } else if (hitN !== d.prevHit) playOneShot(d, (r.hitSide || 1) > 0 ? 'HitR' : 'HitL');
       else if (!r.isPlayer && !d.os) {
@@ -246,7 +336,7 @@ function createRenderer3D(env, R, W, H) {
       }
       d.prevAtk = atk; d.prevHit = hitN;
       const swinging = d.os && /^Swing/.test(d.os.getClip().name);
-      for (const s in d.hands) { const h = d.hands[s], on = swinging && d.wpnSide === s; h.bat.visible = on && d.wpn === 'bat'; h.chain.visible = on && d.wpn === 'chain'; }
+      for (const s in d.hands) { const h = d.hands[s], on = swinging && d.wpnSide === s; h.bat.visible = on && d.wpn === 'bat'; h.chain.visible = on && d.wpn === 'chain'; h.rod.visible = on && d.wpn === 'rod'; h.lathi.visible = on && d.wpn === 'lathi'; }
     }
     updateRacerAnim(d, dt);
     const spin = (r.speed * M3 * dt) / d.wr; for (const w of d.wheels) w.rotation.x -= spin;
@@ -270,7 +360,7 @@ function createRenderer3D(env, R, W, H) {
       const s = a.userData.side, active = r.state === 'ride' && atkT < 0.3 && side === s;
       const k = active ? Math.sin(Math.min(1, atkT / 0.3) * Math.PI) : 0;
       a.quaternion.copy(a.userData.rest).slerp(a.userData.punch, k);
-      a.userData.bat.visible = active && weapon === 'bat'; a.userData.chain.visible = active && weapon === 'chain';
+      a.userData.bat.visible = active && (weapon === 'bat' || weapon === 'rod' || weapon === 'lathi'); a.userData.chain.visible = active && weapon === 'chain';
     }
     if (d.siren) { const on = Math.floor(time * 6) % 2; d.siren.r.material.emissiveIntensity = on ? 3 : 0.2; d.siren.b.material.emissiveIntensity = on ? 0.2 : 3; d.siren.glow.material.color.set(on ? '#ff3030' : '#3060ff'); }
   }
@@ -283,10 +373,10 @@ function createRenderer3D(env, R, W, H) {
       const dt = Math.min(0.1, Math.max(0, R.time - lastT)); lastT = R.time;
       const p = R.player, pIdx = Math.floor(p.z / SEG), far = pIdx + viewUnits / SEG + CHUNK;
       for (const ch of chunks) ch.grp.visible = ch.i1 >= pIdx - 30 && ch.i0 <= far;
-      const dynRange = Math.min(viewUnits, 330 / M3), inView = (z) => z > p.z - 2500 && z < p.z + dynRange;
+      const dynRange = Math.min(viewUnits, 430 / M3), inView = (z) => z > p.z - 2500 && z < p.z + dynRange;
       R.traffic.forEach((t, i) => {
         const m = traffic3[i]; m.visible = inView(t.z); if (!m.visible) return;
-        path.at(t.z, t.x, P); m.position.set(P.x, P.y, P.z); m.rotation.set(0, -P.h, 0);
+        path.at(t.z, t.x, P); m.position.set(P.x, P.y, P.z); m.rotation.set(0, -P.h + (t.dir < 0 ? Math.PI : 0), 0);
         if (m.userData.far) { const f = m.position.distanceToSquared(camPos) > 32 * 32; m.userData.far.visible = f; m.userData.near.visible = !f; }
         const spin = (t.speed * M3 * dt) / m.userData.wr; for (const w of m.userData.wheels) w.rotation.x -= spin;
       });
@@ -298,7 +388,13 @@ function createRenderer3D(env, R, W, H) {
           if (proj.z < 1) labels.push({ x: (proj.x * 0.5 + 0.5) * W, y: (-proj.y * 0.5 + 0.5) * H, text: r.name });
         }
       });
-      cops3.forEach((m, i) => { const c = R.cops[i]; m.visible = !!c && inView(c.z); if (m.visible) poseRacer(m, c, dt, R.time); });
+      const alive = new Set(R.cops.map((c) => c.id));
+      for (const [id, m] of copModel) if (!alive.has(id)) { copModel.delete(id); m.visible = false; }
+      for (const c of R.cops) { const m = modelForCop(c); if (!m) continue; m.visible = inView(c.z); if (m.visible) { if (c.car) poseJeep(m, c, dt, R.time); else poseRacer(m, c, dt, R.time); } }
+      R.patrols.forEach((pt, i) => {
+        const g = patrol3[i]; g.visible = !pt.used && inView(pt.z); if (!g.visible) return;
+        path.at(pt.z, pt.x, P); g.position.set(P.x, P.y, P.z); g.rotation.set(0, -P.h, 0); flashSiren(g.children[0].userData.siren, R.time + i * 0.3);
+      });
       R.pickups.forEach((k, i) => {
         const m = pick3[i]; m.visible = !k.got && inView(k.z); if (!m.visible) return;
         path.at(k.z, k.x, P); m.position.set(P.x, P.y + 1.1 + Math.sin(R.time * 3 + i) * 0.15, P.z); m.userData.inner.rotation.y = R.time * 2.4;
@@ -309,15 +405,20 @@ function createRenderer3D(env, R, W, H) {
 
       // chase camera that follows the road
       // close chase camera (about 4 m behind, 1.9 m up) so the bike and rider fill the frame
-      const behind = path.at(p.z - 900, clamp(p.x, -1.9, 1.9), {}), ahead = path.at(p.z + 2800, clamp(p.x, -1.9, 1.9) * 0.9, {});
-      const want = new T3.Vector3(behind.x, behind.y + 1.9, behind.z), look = new T3.Vector3(ahead.x, ahead.y + 0.95, ahead.z);
-      const k = first ? 1 : 1 - Math.exp(-dt * 11);
+      // raised chase camera: the rider sits in the lower third and the road, traffic and police ahead stay in view
+      const behind = path.at(p.z - 1250, clamp(p.x, -1.9, 1.9) * 0.85, {}), ahead = path.at(p.z + 7000, clamp(p.x, -1.9, 1.9) * 0.6, {});
+      const want = new T3.Vector3(behind.x, behind.y + 2.75, behind.z), look = new T3.Vector3(ahead.x, ahead.y + 0.2, ahead.z);
+      const k = first ? 1 : 1 - Math.exp(-dt * 8);
       camPos.lerp(want, k); camLook.lerp(look, k); if (first) { camPos.copy(want); camLook.copy(look); first = false; }
       camera.position.copy(camPos);
+      // anything sitting between the camera and the rider would fill the screen: hide it until it is past
+      const camZ = p.z - 1250, camX = clamp(p.x, -1.9, 1.9) * 0.85;
+      R.traffic.forEach((t, i) => { if (traffic3[i].visible && t.z + t.len * 0.5 > camZ - 250 && t.z - t.len * 0.5 < p.z - 150 && Math.abs(t.x - camX) < t.w * 0.5 + 0.18) traffic3[i].visible = false; });
+      for (const c of R.cops) if (c.car) { const m = copModel.get(c.id); if (m && m.visible && c.z + 600 > camZ - 250 && c.z - 600 < p.z - 150 && Math.abs(c.x - camX) < 0.3) m.visible = false; }
       if (R.shake > 0.5) camera.position.add(new T3.Vector3((Math.random() - 0.5) * R.shake * 0.012, (Math.random() - 0.5) * R.shake * 0.012, 0));
-      camera.up.copy(up); camera.lookAt(camLook); camera.rotateZ(-p.lean * 0.05);
-      zoom += ((p.boost ? 1 : 0) - zoom) * Math.min(1, dt * 5);
-      camera.fov = 60 + zoom * 12 + (p.speed / MAXSPEED) * 5; camera.updateProjectionMatrix();
+      camera.up.copy(up); camera.lookAt(camLook); camera.rotateZ(-p.lean * 0.035);
+      zoom += ((p.boost ? 1 : 0) - zoom) * Math.min(1, dt * 4);
+      camera.fov = 58 + zoom * 7 + (p.speed / MAXSPEED) * 3; camera.updateProjectionMatrix();
       skyGroup.position.set(camPos.x, camPos.y, camPos.z);
       sun.target.position.set(player3.position.x, player3.position.y, player3.position.z);
       sun.position.copy(sun.target.position).addScaledVector(sunDir, 120);
@@ -327,7 +428,7 @@ function createRenderer3D(env, R, W, H) {
     },
     dispose() {
       if (envTex) envTex.dispose();
-      for (const m of [player3].concat(racers3, cops3)) if (m.userData.mixer) m.userData.mixer.stopAllAction();
+      for (const m of [player3].concat(racers3, copBikes3)) if (m.userData.mixer) m.userData.mixer.stopAllAction();
       scene.traverse((o) => {
         // models shared with ASSETS stay on the GPU between races
         if (o.geometry && !o.geometry.userData.keep) o.geometry.dispose();

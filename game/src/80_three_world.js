@@ -83,10 +83,10 @@ function texCloud(make) {
 
 /* per-theme look */
 const THEME3 = {
-  sealink: { sunEl: 0.16, sunAz: -0.5, sun: '#ffb27a', sunI: 1.15, hemiSky: '#ffc8a0', hemiGround: '#3a2c48', hemiI: 0.75, fogNear: 70, fogFar: 520, ground: 'water', terrain: 0, wet: false },
-  ladakh:  { sunEl: 0.75, sunAz: 0.9,  sun: '#fff8ee', sunI: 1.0, hemiSky: '#b9d4f0', hemiGround: '#4f4a40', hemiI: 0.55,  fogNear: 120, fogFar: 700, ground: 'rock', terrain: 1, wet: false },
-  thar:    { sunEl: 0.95, sunAz: -0.3, sun: '#fff1d2', sunI: 1.3,  hemiSky: '#ffe2b0', hemiGround: '#a8763c', hemiI: 0.85, fogNear: 90, fogFar: 560, ground: 'sand', terrain: 2, wet: false },
-  kerala:  { sunEl: 0.7,  sunAz: 0.2,  sun: '#dfe8ee', sunI: 0.6,  hemiSky: '#a9bcc8', hemiGround: '#2e4a34', hemiI: 0.9,  fogNear: 40, fogFar: 330, ground: 'grass', terrain: 3, wet: true },
+  sealink: { sunEl: 0.16, sunAz: -0.5, sun: '#ffb27a', sunI: 1.15, hemiSky: '#ffc8a0', hemiGround: '#3a2c48', hemiI: 0.75, fogNear: 130, fogFar: 680, ground: 'water', terrain: 0, wet: false },
+  ladakh:  { sunEl: 0.75, sunAz: 0.9,  sun: '#fff8ee', sunI: 1.0, hemiSky: '#b9d4f0', hemiGround: '#4f4a40', hemiI: 0.55,  fogNear: 170, fogFar: 820, ground: 'rock', terrain: 1, wet: false },
+  thar:    { sunEl: 0.95, sunAz: -0.3, sun: '#fff1d2', sunI: 1.3,  hemiSky: '#ffe2b0', hemiGround: '#a8763c', hemiI: 0.85, fogNear: 140, fogFar: 720, ground: 'sand', terrain: 2, wet: false },
+  kerala:  { sunEl: 0.7,  sunAz: 0.2,  sun: '#dfe8ee', sunI: 0.6,  hemiSky: '#a9bcc8', hemiGround: '#2e4a34', hemiI: 0.9,  fogNear: 70, fogFar: 430, ground: 'grass', terrain: 3, wet: true },
 };
 function terrainLift(kind, i, lat) {
   const d = Math.max(0, Math.abs(lat) - HALF - 1);

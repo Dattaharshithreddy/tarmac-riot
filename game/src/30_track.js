@@ -1,6 +1,6 @@
 /* ---------- track builder ---------- */
-const NEAR_SOLID = { palm: 1, coconut: 1, lamp: 1, pole: 1, cactus: 1, rock: 1, marker: 1, chorten: 1 };
-const FAR_TYPES = { building: 1, house: 1, fort: 1, billboard: 1 };
+const NEAR_SOLID = { palm: 1, coconut: 1, lamp: 1, pole: 1, cactus: 1, rock: 1, marker: 1, chorten: 1, tree: 1, poplar: 1, sign: 1, warn: 1, speed: 1 };
+const FAR_TYPES = { building: 1, house: 1, fort: 1, billboard: 1, dhaba: 1, pump: 1 };
 
 function buildTrack(def, seed) {
   const rnd = makeRng(seed);
@@ -59,12 +59,29 @@ function buildTrack(def, seed) {
   segs[F + 1].gate = 'finish';
   segs[32].gate = 'start';
 
+  // crash barriers on bends and steep drops (not on the bridge, which has its own walls)
+  if (!def.walls) {
+    for (let n = 40; n < F; n++) {
+      const c = Math.abs(segs[n].curve), dy = Math.abs(segs[n].p2.world.y - segs[n].p1.world.y);
+      if (c >= 2.5 || dy > 30) for (let k = Math.max(0, n - 12); k <= Math.min(F, n + 12); k++) segs[k].rail = true;
+    }
+  }
+  // road signs: curve warnings before bends, distance boards and speed limits along the way
+  let lastWarn = -999;
+  for (let n = 60; n < F - 40; n++) {
+    const c = segs[n + 30].curve, c0 = segs[n + 29].curve;
+    if (Math.abs(c) >= 2 && Math.abs(c0) < 2 && n - lastWarn > 90) { segs[n].sprites.push({ t: 'warn', off: -1.32, v: c > 0 ? 1 : 0, solid: true }); lastWarn = n; }
+    if (n % 620 === 300) segs[n].sprites.push({ t: 'sign', off: -1.42, v: Math.floor(n / 620) % 4, solid: true });
+    if (n % 620 === 520) segs[n].sprites.push({ t: 'speed', off: -1.3, v: 0, solid: true });
+  }
   // roadside scenery
   for (let n = 16; n < F + 80; n += 3 + Math.floor(rnd() * 5)) {
     for (const side of [-1, 1]) {
       if (rnd() < 0.3) continue;
       const t = pickWeighted(rnd, pal.scenery, pal.weights);
-      const off = side * (FAR_TYPES[t] ? 2.4 + rnd() * 3.2 : 1.35 + rnd() * 1.1);
+      let off = side * (FAR_TYPES[t] ? 2.4 + rnd() * 3.2 : 1.35 + rnd() * 1.1);
+      if (t === 'dhaba' || t === 'pump') off = side * (1.75 + rnd() * 0.4);
+      if (segs[n].rail && !FAR_TYPES[t] && Math.abs(off) < 1.5) off = side * 1.5;
       segs[n].sprites.push({ t: t, off: off, v: Math.floor(rnd() * 4), solid: !!NEAR_SOLID[t] });
     }
   }
