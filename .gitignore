@@ -40,3 +40,5 @@ yarn-error.*
 /ios
 /android
 game/dist
+tools/blender/__pycache__/
+tools/blender/tex/

@@ -3,6 +3,14 @@ const M3 = 0.0045;            // metres per world unit
 const KC = 0.0018;            // heading change (radians) per segment per unit of curve
 const HALF = ROAD_W * M3;     // road half width: 9 m
 const CHUNK = 120;            // segments per road/scenery chunk
+// back/ahead in world units, up/look in metres, lat = how much the camera follows the rider sideways
+const CAMERAS = [
+  { name: 'Medium',       back: 1250, up: 2.75, ahead: 7000, look: 0.2,  fov: 58, lat: 0.85 },
+  { name: 'Close',        back: 820,  up: 1.75, ahead: 3600, look: 0.95, fov: 62, lat: 0.95 },
+  { name: 'Far',          back: 2300, up: 4.6,  ahead: 8600, look: 0,    fov: 56, lat: 0.75 },
+  { name: 'Cinematic',    back: 3800, up: 11,   ahead: 4600, look: 0,    fov: 48, lat: 0.5 },
+  { name: 'First person', back: 125,  up: 1.42, ahead: 5200, look: 0.75, fov: 74, lat: 1.0, fp: true },
+];
 
 function buildPath3(track) {
   const segs = track.segs, N = segs.length, L = SEG * M3;
@@ -48,18 +56,36 @@ function ribbonGeo(path, i0, i1, prof, uScale, vLen) {
 
 /* ----- textures drawn on canvases ----- */
 function texAsphalt(make, wet) {
-  return mk(make, 256, 512, (c, w, h) => {
-    c.fillStyle = wet ? '#2f3237' : '#3d3f44'; c.fillRect(0, 0, w, h);
-    const r = makeRng(3);
-    for (let i = 0; i < 9000; i++) { const v = Math.floor(r() * 50) - 25; c.fillStyle = 'rgba(' + (128 + v) + ',' + (128 + v) + ',' + (130 + v) + ',' + (0.05 + r() * 0.07) + ')'; c.fillRect(r() * w, r() * h, 1 + r() * 2, 1 + r() * 2); }
-    for (let i = 0; i < 14; i++) { c.fillStyle = 'rgba(0,0,0,' + (0.05 + r() * 0.08) + ')'; c.beginPath(); c.ellipse(r() * w, r() * h, 6 + r() * 22, 20 + r() * 60, 0, 0, 7); c.fill(); }
-    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(w * 0.12, 0, w * 0.1, h); c.fillRect(w * 0.37, 0, w * 0.1, h); c.fillRect(w * 0.62, 0, w * 0.1, h); c.fillRect(w * 0.86, 0, w * 0.1, h);
-    c.fillStyle = '#e9e9e9'; c.fillRect(4, 0, 5, h); c.fillRect(w - 9, 0, 5, h);
-    for (const u of [0.25, 0.75]) c.fillRect(w * u - 2.5, 0, 5, h * 0.42);
-    c.fillStyle = '#f2c100'; c.fillRect(w * 0.5 - 7, 0, 4, h); c.fillRect(w * 0.5 + 3, 0, 4, h);
+  // Blender-baked asphalt (tools/blender/asphalt.py) when available; lane paint is drawn on top here
+  const baked = typeof ASSETS !== 'undefined' && ASSETS.img[wet ? 'asphalt_wet' : 'asphalt_dry'];
+  const W0 = baked ? 512 : 256, H0 = baked ? 1024 : 512;
+  return mk(make, W0, H0, (c, w, h) => {
+    const k = w / 256;
+    if (baked) c.drawImage(baked, 0, 0, w, h);
+    else {
+      c.fillStyle = wet ? '#2f3237' : '#3d3f44'; c.fillRect(0, 0, w, h);
+      const r = makeRng(3);
+      for (let i = 0; i < 9000; i++) { const v = Math.floor(r() * 50) - 25; c.fillStyle = 'rgba(' + (128 + v) + ',' + (128 + v) + ',' + (130 + v) + ',' + (0.05 + r() * 0.07) + ')'; c.fillRect(r() * w, r() * h, 1 + r() * 2, 1 + r() * 2); }
+      for (let i = 0; i < 14; i++) { c.fillStyle = 'rgba(0,0,0,' + (0.05 + r() * 0.08) + ')'; c.beginPath(); c.ellipse(r() * w, r() * h, 6 + r() * 22, 20 + r() * 60, 0, 0, 7); c.fill(); }
+      c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(w * 0.12, 0, w * 0.1, h); c.fillRect(w * 0.37, 0, w * 0.1, h); c.fillRect(w * 0.62, 0, w * 0.1, h); c.fillRect(w * 0.86, 0, w * 0.1, h);
+    }
+    // thermoplastic paint: slightly worn so it reads as paint, not a sticker
+    const paint = (col, x, y, ww, hh) => { c.fillStyle = col; c.fillRect(x, y, ww, hh); c.fillStyle = 'rgba(0,0,0,.10)'; for (let yy = y; yy < y + hh; yy += 9 * k) c.fillRect(x, yy, ww, 2 * k); };
+    paint('#ececec', 4 * k, 0, 5 * k, h); paint('#ececec', w - 9 * k, 0, 5 * k, h);
+    for (const u of [0.25, 0.75]) paint('#ececec', w * u - 2.5 * k, 0, 5 * k, h * 0.42);
+    paint('#f2c100', w * 0.5 - 7 * k, 0, 4 * k, h); paint('#f2c100', w * 0.5 + 3 * k, 0, 4 * k, h);
   });
 }
-function texKerb(make) { return mk(make, 64, 64, (c) => { c.fillStyle = '#d8312b'; c.fillRect(0, 0, 64, 32); c.fillStyle = '#f2f2f2'; c.fillRect(0, 32, 64, 32); c.fillStyle = 'rgba(0,0,0,.08)'; c.fillRect(0, 0, 64, 3); }); }
+function texKerb(make, style) {
+  // Sea Link: Mumbai black/yellow kerb. Highways: an unpaved gravel shoulder, tinted to the local ground
+  if (style === 'city') return mk(make, 64, 64, (c) => { c.fillStyle = '#f2c230'; c.fillRect(0, 0, 64, 32); c.fillStyle = '#1b1b1b'; c.fillRect(0, 32, 64, 32); c.fillStyle = 'rgba(0,0,0,.1)'; c.fillRect(0, 0, 64, 3); });
+  const base = { thar: '#a08a68', ladakh: '#7c776d', kerala: '#5d605b' }[style] || '#77736b';
+  return mk(make, 64, 128, (c, w, h) => {
+    c.fillStyle = base; c.fillRect(0, 0, w, h); const r = makeRng(17);
+    for (let i = 0; i < 900; i++) { c.fillStyle = shade(base, (r() - 0.5) * 0.7); c.fillRect(r() * w, r() * h, 1 + r() * 2.5, 1 + r() * 2.5); }
+    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(0, 0, 6, h);   // worn edge where the tarmac ends
+  });
+}
 function texGround(make, a, b, kind) {
   return mk(make, 256, 256, (c, w, h) => {
     c.fillStyle = a; c.fillRect(0, 0, w, h); const r = makeRng(9);

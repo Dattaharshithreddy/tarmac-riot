@@ -26,6 +26,7 @@ const pe = (id, type) => d.getElementById(id).dispatchEvent(new w.Event(type, { 
 pe('bR', 'pointerdown'); ok(T.input.right === true, 'right button sets steering'); pe('bR', 'pointerup'); ok(T.input.right === false, 'release clears steering');
 pe('bPL', 'pointerdown'); ok(T.input.punchL === true, 'punch button queues a punch');
 pe('bK', 'pointerdown'); ok(T.input.kick === true, 'kick button queues a kick');
+const cam0 = T.save.cam | 0; pe('bC', 'pointerdown'); ok((T.save.cam | 0) === (cam0 + 1) % 5, 'camera button cycles the view');
 // pause/resume
 d.getElementById('bP').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); ok(T.S.screen === 'pause', 'pause button pauses');
 click('[data-a="resume"]'); ok(T.S.screen === 'race', 'resume returns to race');

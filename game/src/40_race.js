@@ -74,8 +74,20 @@ function createRace(save, trackIndex, opts) {
   for (let i = 0; i < Math.floor(def.segs / 65); i++) {
     R.pickups.push({ type: pickOf(rnd, pk), z: 7000 + rnd() * (track.finishZ - 12000), x: LANE_X[Math.floor(rnd() * LANES)] + (rnd() - 0.5) * 0.2, got: false });
   }
-  for (let i = 0; i < Math.floor(def.segs / 100); i++) {
-    R.hazards.push({ type: rnd() < 0.5 ? 'cone' : 'barrel', z: 8000 + rnd() * (track.finishZ - 12000), x: LANE_X[Math.floor(rnd() * LANES)] + (rnd() - 0.5) * 0.3, w: 0.12 });
+  // road works: a lane closed by a barricade and drum, with a taper of cones leading into it
+  const HZW = { cone: 0.08, barrel: 0.1, barricade: 0.2 };
+  for (let i = 0; i < Math.floor(def.segs / 300); i++) {
+    const z0 = 9000 + rnd() * (track.finishZ - 14000), lane = def.twoWay ? pickOf(rnd, [0, 1]) : Math.floor(rnd() * LANES), lx = LANE_X[lane];
+    const toward = lane === 0 ? 1 : lane === LANES - 1 ? -1 : (rnd() < 0.5 ? 1 : -1);     // taper pushes traffic toward the open lane
+    for (let k = 0; k < 4; k++) R.hazards.push({ type: 'cone', z: z0 + k * 700, x: lx - toward * (0.22 - k * 0.11), w: HZW.cone });
+    R.hazards.push({ type: 'barricade', z: z0 + 3000, x: lx, w: HZW.barricade });
+    R.hazards.push({ type: 'barrel', z: z0 + 3500, x: lx + toward * 0.12, w: HZW.barrel });
+    for (let k = 0; k < 3; k++) R.hazards.push({ type: 'cone', z: z0 + 4200 + k * 900, x: lx + toward * 0.2, w: HZW.cone });
+  }
+  // the odd stray cone or drum
+  for (let i = 0; i < Math.floor(def.segs / 260); i++) {
+    const t = rnd() < 0.6 ? 'cone' : 'barrel';
+    R.hazards.push({ type: t, z: 8000 + rnd() * (track.finishZ - 12000), x: LANE_X[Math.floor(rnd() * LANES)] + (rnd() - 0.5) * 0.3, w: HZW[t] });
   }
   return R;
 }
@@ -245,7 +257,7 @@ function updatePlayer(R, dt, input) {
         if (o.solid && Math.abs(p.x - o.off) < 0.2) { crashPlayer(R, 0.3 + sp * 0.35); p.x = clamp(p.x + sign(p.x - o.off) * 0.25, -2.2, 2.2); break; }
       }
       for (const h of R.hazards) {
-        if (Math.abs(h.z - p.z) < 160 && Math.abs(h.x - p.x) < h.w + 0.08) { h.z = -9999; crashPlayer(R, 0.18 + sp * 0.3); break; }
+        if (Math.abs(h.z - p.z) < 160 && Math.abs(h.x - p.x) < h.w + 0.05) { h.z = -9999; crashPlayer(R, (h.type === 'cone' ? 0.1 : h.type === 'barricade' ? 0.3 : 0.2) + sp * 0.3); break; }
       }
       for (const pt of R.patrols) {   // ploughing into a parked police jeep
         if (!pt.used && Math.abs(pt.z - p.z) < 520 && Math.abs(pt.x - p.x) < 0.2) { crashPlayer(R, 0.4 + sp * 0.4); offence(R, 2, 'HIT A POLICE JEEP'); p.x = clamp(p.x + 0.25, -2.2, 2.2); break; }

@@ -118,16 +118,27 @@ CARS = {
 }
 
 
-def car(kind, out, lod=0, taxi=False):
+def police_decal(path, w, h, big='POLICE', small='HIGHWAY PATROL  \u2022  DIAL 112'):
+    from PIL import Image, ImageDraw, ImageFont
+    im = Image.new('RGB', (w, h), (244, 245, 246)); d = ImageDraw.Draw(im)
+    fs = int(h * 0.62); f = ImageFont.truetype(PT.FONT_B, fs)
+    while d.textlength(big, font=f) > w * 0.92: fs -= 2; f = ImageFont.truetype(PT.FONT_B, fs)
+    d.text(((w - d.textlength(big, font=f)) / 2, h * 0.02), big, font=f, fill=(22, 62, 160))
+    if small:
+        f2 = ImageFont.truetype(PT.FONT_C, int(h * 0.2)); d.text(((w - d.textlength(small, font=f2)) / 2, h * 0.72), small, font=f2, fill=(190, 30, 30))
+    im.save(path)
+
+
+def car(kind, out, lod=0, taxi=False, police=False):
     reset(); hi = lod == 0
     C = CARS['hatch' if taxi else kind]
-    AT = make_atlas(kind + ('_taxi' if taxi else ''), 'MH 01 TX 4321' if taxi else {'sedan': 'MH 12 AB 2024', 'hatch': 'KA 05 MN 7788', 'suv': 'DL 3C AK 0909'}[kind],
+    AT = make_atlas(kind + ('_taxi' if taxi else '_police' if police else ''), 'MH 01 TX 4321' if taxi else 'MH 12 PC 0112' if police else {'sedan': 'MH 12 AB 2024', 'hatch': 'KA 05 MN 7788', 'suv': 'DL 3C AK 0909'}[kind],
                     plate_bg=(250, 205, 0) if taxi else (240, 240, 236))
     PARTS = AT.material('Parts')
     LA = lamps_atlas(); LAMPS = LA.material('Lamps', emissive=True, emit_str=2.5)
     VT.tyre_tex(TEX + '/car_tyre.png', 'TARMAC  ECO  %d/%d R%d' % (int(C['tw'] * 1000), 65 if C['r'] < 0.33 else 60, 15 if C['r'] < 0.33 else 17))
     TYRE = tex_mat('Tyre', TEX + '/car_tyre.png', rough=0.85)
-    PAINT = mat('CarPaint', hexc('#141414' if taxi else '#c0392b'), metal=0.5, rough=0.22, coat=1.0)
+    PAINT = mat('PolicePaint', hexc('#f4f5f6'), metal=0.3, rough=0.25, coat=1.0) if police else mat('CarPaint', hexc('#141414' if taxi else '#c0392b'), metal=0.5, rough=0.22, coat=1.0)
     GLASS = mat('Glass', hexc('#0e1820'), metal=0.3, rough=0.03, coat=1.0)
     st = [dict(y=y, zb=zb, w=w, belt=b, top=t, wtop=wt) for y, zb, w, b, t, wt in C['stations']]
     sh = Shell(st, side_bulge=0.045)
@@ -211,6 +222,34 @@ def car(kind, out, lod=0, taxi=False):
             objs.append(sh.patch('roofpaint%+d' % s, ROOF, g['ws'][1] + 0.02, g['side'][1] + 0.04, U_RR - 0.004, 1.0, lift=0.0012, ny=14 if hi else 6, nu=5 if hi else 3, side=s))
         sign = box('taxisign', (0.42, 0.14, 0.13), (0, -0.4, sh.point(-0.4, 1.0).z + 0.07), PARTS, bevel=0.02)
         PT.uv_const(sign, AT.cells['yellow']); objs.append(sign)
+    if police:
+        # highway patrol livery: blue band with a red pinstripe, POLICE on the doors and tailgate, light bar, bull bar
+        LB = mat('LiveryBlue', hexc('#1d4fb8'), metal=0.3, rough=0.3, coat=1.0); LR = mat('LiveryRed', hexc('#c8231d'), metal=0.3, rough=0.3, coat=1.0)
+        yF1, yR1 = st[0]['y'] - 0.03, st[-1]['y'] + 0.03
+        for s in (1, -1):
+            objs.append(sh.patch('band%+d' % s, LB, yF1, yR1, 0.37, 0.45, lift=0.0018, ny=40 if hi else 16, nu=2, side=s))
+            objs.append(sh.patch('pin%+d' % s, LR, yF1, yR1, 0.335, 0.355, lift=0.0018, ny=40 if hi else 16, nu=1, side=s))
+        police_decal(TEX + '/police_side.png', 512, 128)
+        police_decal(TEX + '/police_rear.png', 512, 128, small='')
+        DS = tex_mat('PoliceDecal', TEX + '/police_side.png', rough=0.35); DR = tex_mat('PoliceDecalRear', TEX + '/police_rear.png', rough=0.35)
+        mid = (g['side'][0] + g['side'][1]) / 2
+        for s in (1, -1):
+            p0 = sh.point(mid + 0.05, 0.52, s)
+            dc = decal('door_police%+d' % s, 1.25, 0.31, p0 + V((s * 0.012, 0, 0)), DS, rot=(0, 0, s * math.pi / 2)); objs.append(dc)
+        pr = sh.point(st[-1]['y'], 0.55, 1)
+        objs.append(decal('rear_police', 0.9, 0.22, V((0, st[-1]['y'] - 0.012, pr.z + 0.02)), DR))
+        rz = sh.point(-0.15, 1.0).z
+        BAR = mat('LightBar', hexc('#15171b'), metal=0.4, rough=0.35)
+        SR = mat('Siren_R', hexc('#ff2a20'), rough=0.2, emit=hexc('#ff2010'), emit_str=3.0); SB = mat('Siren_B', hexc('#2050ff'), rough=0.2, emit=hexc('#1040ff'), emit_str=3.0)
+        objs.append(box('lb_base', (1.18, 0.30, 0.07), (0, -0.15, rz + 0.075), BAR, bevel=0.025))
+        objs.append(box('lb_red', (0.52, 0.26, 0.11), (-0.29, -0.15, rz + 0.165), SR, bevel=0.03))
+        objs.append(box('lb_blue', (0.52, 0.26, 0.11), (0.29, -0.15, rz + 0.165), SB, bevel=0.03))
+        for x in (-0.45, 0.45): objs.append(box('lb_foot%+.1f' % x, (0.06, 0.06, 0.06), (x, -0.15, rz + 0.025), BAR))
+        BB = mat('BullBar', hexc('#1b1c1f'), metal=0.6, rough=0.35)
+        yb = st[0]['y'] + 0.12; zb0 = st[0]['zb'] + 0.02
+        for x in (-0.32, 0.32): objs.append(cyl_between('bb_post%+.2f' % x, (x, yb, zb0), (x, yb - 0.02, zb0 + 0.62), 0.03, BB, seg=12))
+        objs.append(cyl_between('bb_top', (-0.42, yb - 0.02, zb0 + 0.6), (0.42, yb - 0.02, zb0 + 0.6), 0.03, BB, seg=12))
+        objs.append(cyl_between('bb_low', (-0.55, yb, zb0 + 0.18), (0.55, yb, zb0 + 0.18), 0.032, BB, seg=12))
     # wheels
     tr = C['track']
     centers = [V((sx * tr, ay, r)) for ay in (fa, ra) for sx in (1, -1)]
@@ -470,6 +509,7 @@ if __name__ == '__main__':
     for k in which:
         lod = 1 if sfx else 0
         if k == 'taxi': car('hatch', outd + '/taxi%s.glb' % sfx, taxi=True, lod=lod)
+        elif k == 'policejeep': car('suv', outd + '/policejeep%s.glb' % sfx, police=True, lod=lod)
         elif k.startswith('truck'): truck(int(k[5:]), outd + '/%s%s.glb' % (k, sfx), lod=lod)
         elif k == 'bus': bus(outd + '/bus%s.glb' % sfx, lod=lod)
         elif k == 'auto': auto(outd + '/auto%s.glb' % sfx, lod=lod)

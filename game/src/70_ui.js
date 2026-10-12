@@ -124,7 +124,7 @@ function boot() {
     settings() {
       return '<div class="scr dimA">' + head('SETTINGS') + '<div class="set"><div class="row"><span>Sound</span><button class="btn small" data-a="mute">' + (save.mute ? 'OFF' : 'ON') + '</button></div>' +
         '<div class="row"><span>Graphics</span><button class="btn small" data-a="quality">' + (save.quality ? 'HIGH' : 'LOW (faster)') + '</button></div>' +
-        '<div class="how"><b>How to play</b><p>\u25C0 \u25B6 steer (tap to nudge, hold to change lanes). Hold <b>NITRO</b> for a burst, <b>BRAKE</b> to scrub speed. Tap \uD83D\uDC4A to punch (or swing your weapon) at the rider on that side, <b>KICK</b> to boot the closest rider sideways, into traffic or the barrier.</p>' +
+        '<div class="how"><b>How to play</b><p>\uD83C\uDFA5 changes the camera (Medium, Close, Far, Cinematic, First person). Pinch with two fingers to zoom in or out. </p><p>\u25C0 \u25B6 steer (tap to nudge, hold to change lanes). Hold <b>NITRO</b> for a burst, <b>BRAKE</b> to scrub speed. Tap \uD83D\uDC4A to punch (or swing your weapon) at the rider on that side, <b>KICK</b> to boot the closest rider sideways, into traffic or the barrier.</p>' +
         '<p>Knock riders down to steal their chains, bats and iron rods. India drives on the left: oncoming traffic uses the right-hand lanes, so overtake with care.</p>' +
         '<p>The police only come if you cause an accident or attack them. One star: they try to pull you over. Two: lathis come out. Three: patrol jeeps try to run you off the road. Crash or stop next to a cop and you are BUSTED. Use nitro to get away and stay clear of them for a while to lose the stars.</p>' +
         '<p>Finish in the top 3 to unlock the next race. Spend cash in the garage.</p></div>' +
@@ -150,6 +150,7 @@ function boot() {
     ui.className = 's-' + name;
     ui.innerHTML = screens[name]();
     controls.style.display = name === 'race' ? 'block' : 'none';
+    if (name === 'race' && R && R.phase === 'countdown' && R.time < 0.1) toast('Camera: ' + camNames[save.cam | 0] + '  (tap \uD83C\uDFA5 to change)');
     if (name === 'menu' || name === 'tracks' || name === 'garage' || name === 'settings') { if (!attract) startAttract(); }
   }
 
@@ -213,10 +214,25 @@ function boot() {
     const up = () => el.classList.remove('on'); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   }
   hold('bL', 'left'); hold('bR', 'right'); hold('bB', 'brake'); hold('bN', 'nitro'); tap('bPL', 'punchL'); tap('bPR', 'punchR'); tap('bK', 'kick');
+  /* ----- camera: button / V key cycles the view, pinch or mouse wheel zooms ----- */
+  const camNames = typeof CAMERAS !== 'undefined' ? CAMERAS.map((c) => c.name) : ['Medium'];
+  let zoomSaveT = null;
+  const setZoom = (z) => { save.zoom = clamp(z, 0.55, 1.9); clearTimeout(zoomSaveT); zoomSaveT = setTimeout(() => writeSave(save), 600); };
+  function cycleCam() { save.cam = ((save.cam | 0) + 1) % camNames.length; save.zoom = 1; writeSave(save); toast('Camera: ' + camNames[save.cam]); }
+  const camBtn = doc.getElementById('bC');
+  if (camBtn) camBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (S.screen === 'race') cycleCam(); });
+  const pinch = new Map(); let pinchD0 = 0, pinchZ0 = 1;
+  const isBtn = (t) => t && t.closest && t.closest('.cb,#bP,#bC,#ui .scr');
+  const pd = () => { const p = [...pinch.values()]; return Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y); };
+  win.addEventListener('pointerdown', (e) => { if (S.screen !== 'race' || isBtn(e.target)) return; pinch.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pinch.size === 2) { pinchD0 = pd(); pinchZ0 = save.zoom || 1; } });
+  win.addEventListener('pointermove', (e) => { if (!pinch.has(e.pointerId)) return; pinch.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pinch.size === 2 && pinchD0 > 20) setZoom(pinchZ0 * pinchD0 / Math.max(20, pd())); });
+  const unpinch = (e) => { pinch.delete(e.pointerId); };
+  win.addEventListener('pointerup', unpinch); win.addEventListener('pointercancel', unpinch);
+  win.addEventListener('wheel', (e) => { if (S.screen === 'race') setZoom((save.zoom || 1) * (e.deltaY > 0 ? 1.08 : 1 / 1.08)); }, { passive: true });
   const pauseBtn = doc.getElementById('bP');
   if (pauseBtn) pauseBtn.addEventListener('click', () => { if (S.screen === 'race' && R && R.phase !== 'finished') { S.paused = true; show('pause'); } });
   const KEYS = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowDown: 'brake', s: 'brake', S: 'brake', ' ': 'nitro', Shift: 'nitro', z: 'punchL', Z: 'punchL', q: 'punchL', x: 'punchR', X: 'punchR', e: 'punchR', c: 'kick', C: 'kick', f: 'kick', F: 'kick' };
-  win.addEventListener('keydown', (e) => { const k = KEYS[e.key]; if (k) { input[k] = true; sound.init(); e.preventDefault(); } if (e.key === 'Escape' && S.screen === 'race') { S.paused = true; show('pause'); } });
+  win.addEventListener('keydown', (e) => { if ((e.key === 'v' || e.key === 'V') && S.screen === 'race') cycleCam(); const k = KEYS[e.key]; if (k) { input[k] = true; sound.init(); e.preventDefault(); } if (e.key === 'Escape' && S.screen === 'race') { S.paused = true; show('pause'); } });
   win.addEventListener('keyup', (e) => { const k = KEYS[e.key]; if (k && k !== 'punchL' && k !== 'punchR' && k !== 'kick') input[k] = false; });
   doc.addEventListener('visibilitychange', () => { if (doc.hidden && S.screen === 'race' && R && R.phase !== 'finished') { S.paused = true; show('pause'); } });
   let resizeT = null;
@@ -251,7 +267,7 @@ function boot() {
     let n = 0;
     while (acc >= STEP && n < 5) { tick(STEP); acc -= STEP; n++; }
     if (n === 5) acc = 0;
-    if ((S.screen === 'race' || S.screen === 'pause' || S.screen === 'results') && R && rd) rd.draw(ctx, R, { hud: S.screen !== 'results' });
+    if ((S.screen === 'race' || S.screen === 'pause' || S.screen === 'results') && R && rd) rd.draw(ctx, R, { hud: S.screen !== 'results', cam: S.screen === 'results' ? 3 : save.cam, zoom: save.zoom });
     else if (attract && attractRd) attractRd.draw(ctx, attract, { hud: false });
   }
 

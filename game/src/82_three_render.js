@@ -72,7 +72,7 @@ function createRenderer3D(env, R, W, H) {
 
   /* road, kerbs, ground */
   const roadMat = mat('#ffffff', { map: tex(texAsphalt(make, th.wet), true), r: th.wet ? 0.45 : 0.92, m: th.wet ? 0.15 : 0 });
-  const kerbMat = mat('#ffffff', { map: tex(texKerb(make), true), r: 0.8 });
+  const kerbMat = mat('#ffffff', { map: tex(texKerb(make, def.id === 'sealink' ? 'city' : def.id), true), r: 0.92 });
   const groundTex = th.ground === 'sand' ? texGround(make, '#d9a45b', '#e8c07e', 'sand') : th.ground === 'rock' ? texGround(make, '#6e6455', '#857a68', 'rock') : th.ground === 'grass' ? texGround(make, '#2f7d3f', '#3f9a4f', 'grass') : texWater(make);
   const groundMat = mat('#ffffff', { map: tex(groundTex, true), r: th.ground === 'water' ? 0.3 : 0.95, m: th.ground === 'water' ? 0.1 : 0 });
   const wallMat = mat('#c9c6bf', { ds: true, r: 0.9 });
@@ -265,6 +265,11 @@ function createRenderer3D(env, R, W, H) {
     return m;
   };
   const racerModel = (style, lo, cast) => shadowed(useGLB ? makeRacerGLB(style, { lo: lo, shadowProxy: !!cast }, glowTex) : makeRider(mat, style, glowTex), cast !== false && !useGLB ? true : !!cast);
+  traffic3.forEach((g) => {
+    const bb = new T3.Box3().setFromObject(g), sx = (bb.max.x - bb.min.x) * 1.15, sz = (bb.max.z - bb.min.z) * 1.08;
+    if (!isFinite(sx) || !isFinite(sz)) return;
+    const b = new T3.Mesh(new T3.PlaneGeometry(sx, sz), blobMat); b.rotation.x = -Math.PI / 2; b.position.set((bb.max.x + bb.min.x) / 2, 0.03, (bb.max.z + bb.min.z) / 2); b.renderOrder = -1; g.add(b);
+  });
   const racers3 = R.rivals.map((r) => { const m = racerModel(r.style, true); m.visible = false; scene.add(m); return m; });
   const player3 = racerModel(Object.assign({}, PLAYER_STYLE, { bike: R.stats.color }), !q, true); scene.add(player3);
   const copBikes3 = [0, 1, 2, 3].map(() => { const m = racerModel(COP_STYLE, true); m.visible = false; scene.add(m); return m; });
@@ -281,8 +286,27 @@ function createRenderer3D(env, R, W, H) {
     m = pool.find((x) => !used.has(x)); if (m) copModel.set(c.id, m);
     return m || null;
   }
-  const pick3 = R.pickups.map((k) => { const m = makePickup(mat, k.type, glowTex); m.visible = false; scene.add(m); return m; });
-  const haz3 = R.hazards.map((h) => { const m = h.type === 'cone' ? makeCone(mat) : makeBarrel(mat); m.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; }); m.visible = false; scene.add(m); return m; });
+  // pickups: larger, with a GTA-style light beam so they can be spotted far down the road
+  const beamMats = {};
+  const pick3 = R.pickups.map((k) => {
+    const m = makePickup(mat, k.type, glowTex); m.scale.setScalar(1.45);
+    const col = { cash: '#2fe08a', nitro: '#3b9bff', repair: '#ff5a5a' }[k.type] || '#ffd400';
+    const bm = beamMats[col] || (beamMats[col] = new T3.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.28, depthWrite: false, blending: T3.AdditiveBlending, side: T3.DoubleSide, fog: true }));
+    const beam = new T3.Mesh(new T3.CylinderGeometry(0.28, 0.42, 6, 14, 1, true), bm); beam.position.y = 2.6; m.add(beam); m.userData.beam = beam;
+    const ring = new T3.Mesh(new T3.RingGeometry(0.45, 0.62, 24), bm); ring.rotation.x = -Math.PI / 2; ring.position.y = -0.8; m.add(ring);
+    m.visible = false; scene.add(m); return m;
+  });
+  const haz3 = R.hazards.map((h) => {
+    const m = makeHazardModel(mat, h.type); m.traverse((o) => { if (o.isMesh) o.castShadow = q > 0; });
+    m.scale.setScalar(h.type === 'cone' ? 1.4 : 1.25);   // a touch oversized so they read at speed
+    // contact shadow, and a flashing amber blinker on drums and barricades
+    const b = new T3.Mesh(new T3.PlaneGeometry(h.type === 'barricade' ? 2.0 : 1.0, h.type === 'barricade' ? 1.0 : 1.0), blobMat); b.rotation.x = -Math.PI / 2; b.position.y = 0.02; m.add(b);
+    if (h.type !== 'cone') {
+      const bl = new T3.Sprite(new T3.SpriteMaterial({ map: glowTex, color: '#ffb000', transparent: true, depthWrite: false, blending: T3.AdditiveBlending }));
+      bl.scale.set(1.4, 1.4, 1); bl.position.set(h.type === 'barricade' ? 0.72 : 0, h.type === 'barricade' ? 1.12 : 1.22, 0); m.add(bl); m.userData.blink = bl;
+    }
+    m.visible = false; scene.add(m); return m;
+  });
 
   const overlay = createOverlay(R, W, H);
   const camPos = new T3.Vector3(), camLook = new T3.Vector3(), up = new T3.Vector3(0, 1, 0), proj = new T3.Vector3();
@@ -302,6 +326,8 @@ function createRenderer3D(env, R, W, H) {
     if (m.userData.far) { const f = m.position.distanceToSquared(camPos) > 32 * 32; m.userData.far.visible = f; m.userData.near.visible = !f; }
     if (c.state === 'ride') flashSiren(m.userData.siren, time); else if (m.userData.siren) { m.userData.siren.r.emissiveIntensity = 0.1; m.userData.siren.b.emissiveIntensity = 0.1; }
   }
+  // camera presets, cycled with the camera button (zoom multiplies the distance; pinch / mouse wheel)
+  let cam = Object.assign({}, CAMERAS[0]), camIdx = -1;
   const HIP = 1.0;
   function poseRacerGLB(m, r, dt, time) {
     path.at(r.z, r.x, P);
@@ -397,28 +423,42 @@ function createRenderer3D(env, R, W, H) {
       });
       R.pickups.forEach((k, i) => {
         const m = pick3[i]; m.visible = !k.got && inView(k.z); if (!m.visible) return;
-        path.at(k.z, k.x, P); m.position.set(P.x, P.y + 1.1 + Math.sin(R.time * 3 + i) * 0.15, P.z); m.userData.inner.rotation.y = R.time * 2.4;
+        path.at(k.z, k.x, P); m.position.set(P.x, P.y + 1.2 + Math.sin(R.time * 3 + i) * 0.15, P.z); m.userData.inner.rotation.y = R.time * 2.4;
+        if (m.userData.beam) m.userData.beam.visible = k.z - p.z > 1800;   // beam guides you in, then gets out of the way
       });
-      R.hazards.forEach((h, i) => { const m = haz3[i]; m.visible = h.z > 0 && inView(h.z); if (m.visible) { path.at(h.z, h.x, P); m.position.set(P.x, P.y, P.z); m.rotation.y = -P.h; } });
+      R.hazards.forEach((h, i) => {
+        const m = haz3[i]; m.visible = h.z > 0 && inView(h.z); if (!m.visible) return;
+        path.at(h.z, h.x, P); m.position.set(P.x, P.y, P.z); m.rotation.y = -P.h;
+        if (m.userData.blink) { const on = (R.time * 1.6 + i * 0.37) % 1 < 0.45; m.userData.blink.visible = on; }
+      });
       poseRacer(player3, p, dt, R.time);
       player3.visible = !(p.inv > 0 && p.state === 'ride' && Math.floor(R.time * 16) % 2);
 
-      // chase camera that follows the road
-      // close chase camera (about 4 m behind, 1.9 m up) so the bike and rider fill the frame
-      // raised chase camera: the rider sits in the lower third and the road, traffic and police ahead stay in view
-      const behind = path.at(p.z - 1250, clamp(p.x, -1.9, 1.9) * 0.85, {}), ahead = path.at(p.z + 7000, clamp(p.x, -1.9, 1.9) * 0.6, {});
-      const want = new T3.Vector3(behind.x, behind.y + 2.75, behind.z), look = new T3.Vector3(ahead.x, ahead.y + 0.2, ahead.z);
-      const k = first ? 1 : 1 - Math.exp(-dt * 8);
+      // chase camera that follows the road; presets blend smoothly into each other
+      const want3 = CAMERAS[clamp(o.cam | 0, 0, CAMERAS.length - 1)], zm = clamp(o.zoom || 1, 0.55, 1.9);
+      const blend = camIdx < 0 ? 1 : 1 - Math.exp(-dt * 4.5); camIdx = o.cam | 0;
+      for (const k of ['back', 'up', 'ahead', 'look', 'fov', 'lat']) cam[k] += (want3[k] * (k === 'back' || k === 'up' ? (want3.fp ? 1 : zm) : 1) - cam[k]) * blend;
+      const fp = want3.fp && cam.up < 1.6;
+      const lx = clamp(p.x, -1.9, 1.9);
+      const behind = path.at(p.z - cam.back, lx * cam.lat, {}), ahead = path.at(p.z + cam.ahead, lx * (fp ? 1 : 0.6), {});
+      const want = new T3.Vector3(behind.x, behind.y + cam.up, behind.z), look = new T3.Vector3(ahead.x, ahead.y + cam.look, ahead.z);
+      const k = first ? 1 : fp ? 1 : 1 - Math.exp(-dt * 8);
       camPos.lerp(want, k); camLook.lerp(look, k); if (first) { camPos.copy(want); camLook.copy(look); first = false; }
       camera.position.copy(camPos);
       // anything sitting between the camera and the rider would fill the screen: hide it until it is past
-      const camZ = p.z - 1250, camX = clamp(p.x, -1.9, 1.9) * 0.85;
-      R.traffic.forEach((t, i) => { if (traffic3[i].visible && t.z + t.len * 0.5 > camZ - 250 && t.z - t.len * 0.5 < p.z - 150 && Math.abs(t.x - camX) < t.w * 0.5 + 0.18) traffic3[i].visible = false; });
-      for (const c of R.cops) if (c.car) { const m = copModel.get(c.id); if (m && m.visible && c.z + 600 > camZ - 250 && c.z - 600 < p.z - 150 && Math.abs(c.x - camX) < 0.3) m.visible = false; }
+      const camZ = p.z - Math.max(0, cam.back), camX = lx * cam.lat;
+      if (cam.up < 7) {
+        R.traffic.forEach((t, i) => { if (traffic3[i].visible && t.z + t.len * 0.5 > camZ - 250 && t.z - t.len * 0.5 < p.z - 150 && Math.abs(t.x - camX) < t.w * 0.5 + 0.18) traffic3[i].visible = false; });
+        for (const c of R.cops) if (c.car) { const m = copModel.get(c.id); if (m && m.visible && c.z + 600 > camZ - 250 && c.z - 600 < p.z - 150 && Math.abs(c.x - camX) < 0.3) m.visible = false; }
+      }
+      // first person: no rider model in the way, a little head bob and more lean
+      const rG = player3.userData.riderG || player3.userData.rider;
+      if (fp) { if (rG) rG.visible = false; else player3.visible = false; camera.position.y += Math.sin(R.time * 9) * 0.012 * (p.speed / MAXSPEED); }
+      else if (rG) rG.visible = true;
       if (R.shake > 0.5) camera.position.add(new T3.Vector3((Math.random() - 0.5) * R.shake * 0.012, (Math.random() - 0.5) * R.shake * 0.012, 0));
-      camera.up.copy(up); camera.lookAt(camLook); camera.rotateZ(-p.lean * 0.035);
+      camera.up.copy(up); camera.lookAt(camLook); camera.rotateZ(-p.lean * (fp ? 0.12 : 0.035));
       zoom += ((p.boost ? 1 : 0) - zoom) * Math.min(1, dt * 4);
-      camera.fov = 58 + zoom * 7 + (p.speed / MAXSPEED) * 3; camera.updateProjectionMatrix();
+      camera.fov = cam.fov + zoom * 7 + (p.speed / MAXSPEED) * 3; camera.updateProjectionMatrix();
       skyGroup.position.set(camPos.x, camPos.y, camPos.z);
       sun.target.position.set(player3.position.x, player3.position.y, player3.position.z);
       sun.position.copy(sun.target.position).addScaledVector(sunDir, 120);

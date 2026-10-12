@@ -1,5 +1,14 @@
 /* ---------- Blender models (GLB, embedded as base64 by build.js) ---------- */
-const ASSETS = { ready: false, gltf: {}, cache: {} };
+const ASSETS = { ready: false, gltf: {}, cache: {}, img: {} };
+// Decode the Blender-baked textures (browser only). done() runs once all have loaded or failed.
+function loadImages(env, done) {
+  const src = env.texData || (typeof window !== 'undefined' ? window.__TR_TEX__ : null);
+  if (!src || typeof Image === 'undefined') { done(); return; }
+  const names = Object.keys(src); let left = names.length;
+  if (!left) { done(); return; }
+  const fin = () => { if (--left === 0) done(); };
+  for (const n of names) { const im = new Image(); im.onload = () => { ASSETS.img[n] = im; fin(); }; im.onerror = fin; im.src = src[n]; }
+}
 
 function b64ToArrayBuffer(s) {
   if (typeof Buffer !== 'undefined' && typeof atob === 'undefined') { const b = Buffer.from(s, 'base64'); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); }
@@ -9,7 +18,8 @@ function b64ToArrayBuffer(s) {
 }
 
 // Decode every embedded model. done(true) when all parsed; done(false) if anything is missing or fails.
-function loadAssets(env, done) {
+function loadAssets(env, done0) {
+  const done = (ok) => loadImages(env, () => done0(ok));
   const src = env.glb || (typeof window !== 'undefined' ? window.__TR_GLB__ : root.__TR_GLB__);
   if (ASSETS.ready) { done(true); return; }
   if (!src || typeof THREE === 'undefined' || !THREE.GLTFLoader || !THREE.SkeletonUtils) { done(false); return; }
@@ -140,14 +150,40 @@ function makeRacerGLB(style, opts, glowTex) {
   return root3;
 }
 
-/* white SUV in highway-patrol livery */
+/* highway-patrol SUV built in Blender (tools/blender/vehicles2.py policejeep); falls back to a recoloured SUV */
 function makePoliceJeepGLB(mat, glowTex, letterTex) {
   const T3 = THREE, root3 = new T3.Group();
-  const near = cloneModel('suv', { CarPaint: '#f2f2f2' }); root3.add(near);
-  const box = new T3.Box3().setFromObject(near), size = box.getSize(new T3.Vector3());
-  addPoliceKit(root3, mat, glowTex, box.max.y, size.x, size.z, null, letterTex);
-  root3.userData = Object.assign(root3.userData, { wheels: [], wr: 1, near: near, far: null, jeep: true });
+  if (!ASSETS.gltf.policejeep) {
+    const near = cloneModel('suv', { CarPaint: '#f2f2f2' }); root3.add(near);
+    const box = new T3.Box3().setFromObject(near), size = box.getSize(new T3.Vector3());
+    addPoliceKit(root3, mat, glowTex, box.max.y, size.x, size.z, null, letterTex);
+    root3.userData = Object.assign(root3.userData, { wheels: [], wr: 1, near: near, far: null, jeep: true });
+    return root3;
+  }
+  const near = cloneModel('policejeep'), far = ASSETS.gltf.policejeep_far ? cloneModel('policejeep_far') : null;
+  root3.add(near); if (far) { far.visible = false; root3.add(far); }
+  // each jeep flashes on its own: give it private copies of the light-bar materials
+  const red = new T3.MeshStandardMaterial({ color: '#ff2a20', emissive: '#ff1010', emissiveIntensity: 3, roughness: 0.2 });
+  const blue = new T3.MeshStandardMaterial({ color: '#2050ff', emissive: '#1040ff', emissiveIntensity: 0.2, roughness: 0.2 });
+  let barTop = 1.9;
+  for (const m3 of [near, far]) if (m3) m3.traverse((o) => {
+    if (!o.isMesh) return;
+    const sw = (m) => m.name === 'Siren_R' ? red : m.name === 'Siren_B' ? blue : m;
+    if (/Siren/.test(Array.isArray(o.material) ? '' : o.material.name)) { o.geometry.computeBoundingBox(); barTop = Math.max(barTop, o.geometry.boundingBox.max.y); }
+    o.material = Array.isArray(o.material) ? o.material.map(sw) : sw(o.material);
+  });
+  const glow = new T3.Sprite(new T3.SpriteMaterial({ map: glowTex, color: '#ff3030', transparent: true, depthWrite: false, blending: T3.AdditiveBlending }));
+  glow.scale.set(3.4, 3.4, 1); glow.position.set(0, barTop + 0.1, 0.15); root3.add(glow);
+  root3.userData = { wheels: [], wr: 1, near: near, far: far, jeep: true, siren: { r: red, b: blue, glow: glow } };
   return root3;
+}
+/* road-work props from Blender; procedural fallback otherwise */
+function makeHazardModel(mat, type) {
+  const name = type === 'barrel' ? 'drum' : type;
+  if (ASSETS.ready && ASSETS.gltf[name]) { const g = new THREE.Group(); g.add(cloneModel(name)); return g; }
+  if (type === 'cone') return makeCone(mat);
+  if (type === 'barricade') { const g = new THREE.Group(); addMesh(g, new THREE.BoxGeometry(1.6, 0.25, 0.05), mat('#d0201a'), 0, 0.95, 0); addMesh(g, new THREE.BoxGeometry(1.6, 0.25, 0.05), mat('#f2f2f2'), 0, 0.6, 0); for (const x of [-0.72, 0.72]) addMesh(g, new THREE.BoxGeometry(0.05, 1.05, 0.5), mat('#e8e8e8'), x, 0.52, 0); return g; }
+  return makeBarrel(mat);
 }
 
 // Start a one-shot clip. hold=true keeps the last frame (used for the crash).

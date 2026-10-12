@@ -91,6 +91,8 @@ canvas#c,canvas#c3{position:absolute;inset:0;width:100%;height:100%;display:bloc
 #bN.on{background:rgba(70,168,255,.7);color:#fff}
 #bB{right:calc(max(2.5vw,env(safe-area-inset-right)) + 20vh);bottom:calc(max(3vh,env(safe-area-inset-bottom)) + 20vh);width:38vh;height:11vh;font-size:3.4vh;border-radius:2vh}
 #bP{position:absolute;pointer-events:auto;top:max(2.5vh,env(safe-area-inset-top));right:max(1.5vw,env(safe-area-inset-right));width:9vh;height:9vh;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:3.4vh}
+#bC{position:absolute;pointer-events:auto;top:max(2.5vh,env(safe-area-inset-top));right:calc(max(1.5vw,env(safe-area-inset-right)) + 11vh);width:9vh;height:9vh;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:4.2vh;touch-action:none}
+#bC:active{background:rgba(255,106,0,.7)}
 #rot{position:fixed;inset:0;background:#0b0d12;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;font:italic 900 22px var(--font);color:var(--y);z-index:20;text-align:center;padding:24px}
 #rot .ph{width:46px;height:78px;border:4px solid #fff;border-radius:9px;animation:r 1.6s ease-in-out infinite}
 @keyframes r{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
@@ -112,6 +114,7 @@ canvas#c,canvas#c3{position:absolute;inset:0;width:100%;height:100%;display:bloc
     <button class="cb" id="bK" aria-label="Kick">&#129462;<small>KICK</small></button>
     <button class="cb" id="bPR" aria-label="Punch right">&#128074;<small>RIGHT</small></button>
     <button id="bP" aria-label="Pause">&#10074;&#10074;</button>
+    <button id="bC" aria-label="Change camera">&#127909;</button>
   </div>
   <div id="ui"></div>
   <div id="toast"></div>

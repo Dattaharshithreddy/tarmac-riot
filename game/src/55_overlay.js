@@ -87,13 +87,13 @@ function createOverlay(R, W, H) {
     bar(ctx, bx + bw - sw, sy, sw, 11 * u, p.nitro / 100, p.boost ? '#ffffff' : '#46a8ff');
     ctx.font = '800 ' + Math.round(11 * u) + 'px ' + FONT; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.textAlign = 'left'; ctx.fillText('HEALTH', bx, sy + 24 * u); ctx.textAlign = 'right'; ctx.fillText('NITRO', bx + bw, sy + 24 * u);
     // speed + time
-    text(ctx, Math.round(p.speed * KMH), W - 84 * u, pad + 50 * u, 52 * u, p.boost ? '#9fd4ff' : '#ffffff', 'right');
-    text(ctx, 'KM/H', W - 84 * u, pad + 68 * u, 14 * u, '#ffffff', 'right');
-    text(ctx, fmtTime(R.raceTime), W - 84 * u, pad + 92 * u, 20 * u, '#ffffff', 'right', false);
+    text(ctx, Math.round(p.speed * KMH), W - 150 * u, pad + 50 * u, 52 * u, p.boost ? '#9fd4ff' : '#ffffff', 'right');
+    text(ctx, 'KM/H', W - 150 * u, pad + 68 * u, 14 * u, '#ffffff', 'right');
+    text(ctx, fmtTime(R.raceTime), W - 150 * u, pad + 92 * u, 20 * u, '#ffffff', 'right', false);
     // weapon
     if (p.weapon) text(ctx, WEAPONS[p.weapon.type].label.toUpperCase() + ' x' + p.weapon.uses, W / 2, sy + 52 * u, 20 * u, '#ffd400', 'center');
     // cash this race
-    text(ctx, rupees(R.earned), W - 84 * u, pad + 118 * u, 18 * u, '#7CFFB2', 'right', false);
+    text(ctx, rupees(R.earned), W - 150 * u, pad + 118 * u, 18 * u, '#7CFFB2', 'right', false);
     // police closing in from behind (the camera looks ahead, so warn the rider)
     let nearest = null;
     for (const c of R.cops) if (c.state === 'ride' && !c.giveUp && c.z < p.z - 250 && c.z > p.z - 9000 && (!nearest || c.z > nearest.z)) nearest = c;

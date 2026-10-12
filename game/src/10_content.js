@@ -74,7 +74,7 @@ const TRACKS = [
 
 const DEFAULT_SAVE = () => ({
   v: 1, cash: 300, bike: 0, owned: [0], up: { 0: { e: 0, t: 0, a: 0 } },
-  unlocked: 1, best: {}, mute: false, quality: 1, stats: { races: 0, wins: 0, takedowns: 0 },
+  unlocked: 1, best: {}, mute: false, quality: 1, cam: 0, zoom: 1, stats: { races: 0, wins: 0, takedowns: 0 },
 });
 function bikeStats(save, bikeIndex) {
   const b = BIKES[bikeIndex];

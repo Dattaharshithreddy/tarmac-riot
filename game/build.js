@@ -12,7 +12,13 @@ const threeSrc = fs.readFileSync(path.join(__dirname, 'vendor', 'three.bundle.mi
 // Blender-made models, embedded so the game works offline inside the app
 const adir = path.join(__dirname, 'assets'), glb = {};
 for (const f of fs.readdirSync(adir).filter((f) => f.endsWith('.glb')).sort()) glb[f.replace('.glb', '')] = fs.readFileSync(path.join(adir, f)).toString('base64');
-const glbSrc = '\nwindow.__TR_GLB__=' + JSON.stringify(glb) + ';\n';
+// Blender-baked textures (road surface), embedded as data URLs
+const tdir = path.join(adir, 'tex'), tex = {};
+if (fs.existsSync(tdir)) for (const f of fs.readdirSync(tdir).filter((f) => /\.(jpe?g|png|webp)$/.test(f)).sort()) {
+  const ext = f.split('.').pop().replace('jpg', 'jpeg');
+  tex[f.replace(/\.[^.]+$/, '')] = 'data:image/' + ext + ';base64,' + fs.readFileSync(path.join(tdir, f)).toString('base64');
+}
+const glbSrc = '\nwindow.__TR_GLB__=' + JSON.stringify(glb) + ';\nwindow.__TR_TEX__=' + JSON.stringify(tex) + ';\n';
 const html = tpl.replace('/*THREE*/', () => threeSrc + glbSrc).replace('/*GAME*/', () => out);
 fs.writeFileSync(path.join(__dirname, 'dist', 'index.html'), html);
 console.log('built dist/index.html', html.length, 'bytes');
