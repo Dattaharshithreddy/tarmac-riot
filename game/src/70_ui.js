@@ -30,7 +30,7 @@ function boot() {
   sound.setMuted(!!save.mute);
   const input = { left: false, right: false, brake: false, nitro: false, punchL: false, punchR: false, kick: false, kickSide: 0 };
   const aInput = { left: false, right: false, brake: false, nitro: false, punchL: false, punchR: false, kick: false, kickSide: 0 };
-  const S = { screen: 'menu', paused: false, sel: 0, gsel: save.bike, W: 960, H: 540, resetArm: false };
+  const S = { screen: 'menu', paused: false, sel: 0, gsel: save.bike, W: 960, H: 540, resetArm: false, cerT: -1 };
   let R = null, rd = null, attract = null, attractRd = null, attractIdx = -1, last = 0, acc = 0, toastT = 0;
   const env = { makeCanvas: (w, h) => { const c = doc.createElement('canvas'); c.width = w; c.height = h; return c; }, quality: save.quality };
   // 3D if the phone supports WebGL, otherwise the 2D renderer
@@ -49,7 +49,7 @@ function boot() {
   const makeRd = (race, old) => {
     if (old && old.dispose) { try { old.dispose(); } catch (e) { /* ignore */ } }
     env.quality = save.quality;
-    if (use3D) { env.gl3.shadowMap.enabled = !!save.quality; try { return createRenderer3D(env, race, S.W, S.H); } catch (e) { use3D = false; c3.style.display = 'none'; } }
+    if (use3D) { env.gl3.shadowMap.enabled = !!save.quality; try { return createRenderer3D(env, race, S.W, S.H); } catch (e) { try { console.error('3D renderer failed: ' + (e && e.stack)); } catch (e2) { /* ignore */ } use3D = false; c3.style.display = 'none'; } }
     return createRenderer(env, race, S.W, S.H);
   };
   const loadingEl = doc.getElementById('loading');
@@ -72,14 +72,14 @@ function boot() {
     sound.init();
     withLoading(() => {
       R = createRace(save, ti, { seed: Math.floor(Math.random() * 1000) });
-      rd = makeRd(R, rd);
+      rd = makeRd(R, rd); S.cerT = -1;
       S.paused = false; S.sel = ti;
       for (const k in input) input[k] = false;
       show('race');
     });
   }
   function startRaceNow(ti) {
-    R = createRace(save, ti, { seed: Math.floor(Math.random() * 1000) }); rd = makeRd(R, rd);
+    R = createRace(save, ti, { seed: Math.floor(Math.random() * 1000) }); rd = makeRd(R, rd); S.cerT = -1;
     S.paused = false; S.sel = ti; for (const k in input) input[k] = false; show('race');
   }
 
@@ -124,7 +124,7 @@ function boot() {
     settings() {
       return '<div class="scr dimA">' + head('SETTINGS') + '<div class="set"><div class="row"><span>Sound</span><button class="btn small" data-a="mute">' + (save.mute ? 'OFF' : 'ON') + '</button></div>' +
         '<div class="row"><span>Graphics</span><button class="btn small" data-a="quality">' + (save.quality ? 'HIGH' : 'LOW (faster)') + '</button></div>' +
-        '<div class="how"><b>How to play</b><p>\uD83C\uDFA5 changes the camera (Medium, Close, Far, Cinematic, First person). Pinch with two fingers to zoom in or out. </p><p>\u25C0 \u25B6 steer (tap to nudge, hold to change lanes). Hold <b>NITRO</b> for a burst, <b>BRAKE</b> to scrub speed. Tap \uD83D\uDC4A to punch (or swing your weapon) at the rider on that side, <b>KICK</b> to boot the closest rider sideways, into traffic or the barrier.</p>' +
+        '<div class="how"><b>How to play</b><p>\uD83C\uDFA5 changes the camera (Medium, Close, Far, Cinematic, Rider cam). Pinch with two fingers to zoom in or out. </p><p>\u25C0 \u25B6 steer (tap to nudge, hold to change lanes). Hold <b>NITRO</b> for a burst, <b>BRAKE</b> to scrub speed. Tap \uD83D\uDC4A to punch (or swing your weapon) at the rider on that side, <b>KICK</b> to boot the closest rider sideways, into traffic or the barrier.</p>' +
         '<p>Knock riders down to steal their chains, bats and iron rods. India drives on the left: oncoming traffic uses the right-hand lanes, so overtake with care.</p>' +
         '<p>The police only come if you cause an accident or attack them. One star: they try to pull you over. Two: lathis come out. Three: patrol jeeps try to run you off the road. Crash or stop next to a cop and you are BUSTED. Use nitro to get away and stay clear of them for a while to lose the stars.</p>' +
         '<p>Finish in the top 3 to unlock the next race. Spend cash in the garage.</p></div>' +
@@ -141,6 +141,7 @@ function boot() {
         (R.justUnlocked ? '<div class="unl">\uD83C\uDFC1 New race unlocked: ' + TRACKS[R.trackIndex + 1].name + '</div>' : '') +
         '<div class="rbtns">' + (next ? '<button class="btn" data-a="next">NEXT RACE</button>' : '') + '<button class="btn' + (next ? ' ghost' : '') + '" data-a="retry">RETRY</button><button class="btn ghost" data-a="garage">GARAGE</button><button class="btn ghost" data-a="menu">MENU</button></div></div></div>';
     },
+    ceremony() { return '<div class="scr cer" data-a="skipcer" aria-label="Skip ceremony"></div>'; },
     pause() { return '<div class="scr dimA center"><div class="pbox"><div class="rtitle">PAUSED</div><button class="btn big" data-a="resume">RESUME</button><button class="btn" data-a="restart">RESTART</button><button class="btn ghost" data-a="quit">QUIT TO MENU</button></div></div>'; },
     race() { return ''; },
   };
@@ -170,6 +171,7 @@ function boot() {
     retry() { startRace(R.trackIndex); },
     restart() { startRace(R.trackIndex); },
     resume() { S.paused = false; show('race'); },
+    skipcer() { if (S.screen === 'ceremony') show('results'); },
     quit() { withLoading(() => { startAttract(); show('menu'); }); },
     bike(b) { S.gsel = +b.dataset.i; sound.sfx('ui'); show('garage'); },
     equip() { if (save.owned.indexOf(S.gsel) >= 0) { save.bike = S.gsel; writeSave(save); sound.sfx('buy'); show('garage'); } },
@@ -253,12 +255,20 @@ function boot() {
       stepRace(R, STEP, input);
       handleEvents(R);
       sound.drive(R.player.speed / MAXSPEED, R.player.boost, R.phase !== 'countdown' && R.player.state === 'ride', R.cops.some((c) => c.state === 'ride'));
-      if (R.results && !R.applied) { applyRaceResults(); sound.drive(0, false, false, false); show('results'); }
+      if (R.results && !R.applied) {
+        applyRaceResults(); sound.drive(0, false, false, false);
+        // podium finish: play the victory ceremony first (3D with the Blender models only)
+        if (!R.results.busted && R.results.place <= 3 && use3D && ASSETS.ready && rd && rd.scene) { S.cerT = 0; R.events.length = 0; show('ceremony'); }
+        else show('results');
+      }
     } else if (attract && (S.screen === 'menu' || S.screen === 'tracks' || S.screen === 'garage' || S.screen === 'settings')) {
       autopilot(attract, aInput); stepRace(attract, STEP, aInput); attract.events.length = 0;
       sound.drive(0, false, false, false);
       if (attract.player.z > attract.track.finishZ - 9000) { attract.player.z = 6000; attract.rivals.forEach((r, i) => { r.z = 6000 + (i - 3) * 500; r.finished = false; }); attract.traffic.forEach((tr) => { tr.z = 9000 + Math.random() * (attract.track.finishZ - 14000); }); }
-    } else if (S.screen === 'results' || S.screen === 'pause') sound.drive(0, false, false, false);
+    } else if (S.screen === 'ceremony' && R) {
+      S.cerT += dt; sound.drive(0, false, false, false); handleEvents(R);
+      if (S.cerT >= CEREMONY_LEN) show('results');
+    } else if (S.screen === 'results' || S.screen === 'pause') { sound.drive(0, false, false, false); if (R && S.cerT !== undefined && S.cerT >= 0) { S.cerT += dt; R.events.length = 0; } }
   }
   function frame(ts) {
     win.requestAnimationFrame(frame);
@@ -267,7 +277,9 @@ function boot() {
     let n = 0;
     while (acc >= STEP && n < 5) { tick(STEP); acc -= STEP; n++; }
     if (n === 5) acc = 0;
-    if ((S.screen === 'race' || S.screen === 'pause' || S.screen === 'results') && R && rd) rd.draw(ctx, R, { hud: S.screen !== 'results', cam: S.screen === 'results' ? 3 : save.cam, zoom: save.zoom });
+    if (S.screen === 'ceremony' && R && rd) rd.draw(ctx, R, { ceremony: S.cerT });
+    else if (S.screen === 'results' && R && rd && S.cerT >= 0) rd.draw(ctx, R, { ceremony: S.cerT });   // fireworks keep going behind the results
+    else if ((S.screen === 'race' || S.screen === 'pause' || S.screen === 'results') && R && rd) rd.draw(ctx, R, { hud: S.screen !== 'results', cam: S.screen === 'results' ? 3 : save.cam, zoom: save.zoom });
     else if (attract && attractRd) attractRd.draw(ctx, attract, { hud: false });
   }
 
@@ -276,5 +288,5 @@ function boot() {
   // decode the Blender models first (3D only); fall back to the built-in models if that fails
   if (use3D) { loadingEl.classList.add('on'); loadAssets(env, () => { loadingEl.classList.remove('on'); begin(); }); }
   else begin();
-  win.__TR = { S: S, input: input, get gl() { return env.gl3; }, startRaceNow: startRaceNow, get use3D() { return use3D; }, get R() { return R; }, get save() { return save; }, get attract() { return attract; }, startRace: startRace, show: show, tick: tick, actions: actions };
+  win.__TR = { S: S, input: input, get gl() { return env.gl3; }, startRaceNow: startRaceNow, get use3D() { return use3D; }, get R() { return R; }, get rd() { return rd; }, get save() { return save; }, get attract() { return attract; }, startRace: startRace, show: show, tick: tick, actions: actions };
 }

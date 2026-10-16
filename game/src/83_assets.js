@@ -146,7 +146,10 @@ function makeRacerGLB(style, opts, glowTex) {
     bikeG.add(glow);
     siren = { r: r, b: b, glow: glow };
   }
-  root3.userData = { glb: true, bikeNear: bike, bikeFar: bikeFar, wheels: wheels, wr: 0.31, bikeG: bikeG, riderG: riderG, rider: rider, mixer: mixer, acts: acts, hands: hands, siren: siren, os: null, osHold: false, prevAtk: 9, prevHit: 0, tauntCd: 2 + Math.random() * 4 };
+  // bones and their bind pose (the seated riding pose), used to pose riders off the bike for the podium
+  const bones = {}, restQ = {};
+  rider.traverse((o) => { if (o.isBone) { bones[o.name] = o; restQ[o.name] = o.quaternion.clone(); } });
+  root3.userData = { glb: true, bikeNear: bike, bikeFar: bikeFar, wheels: wheels, wr: 0.31, bikeG: bikeG, riderG: riderG, rider: rider, mixer: mixer, acts: acts, hands: hands, siren: siren, os: null, osHold: false, prevAtk: 9, prevHit: 0, tauntCd: 2 + Math.random() * 4, bones: bones, restQ: restQ };
   return root3;
 }
 
@@ -177,6 +180,55 @@ function makePoliceJeepGLB(mat, glowTex, letterTex) {
   root3.userData = { wheels: [], wr: 1, near: near, far: far, jeep: true, siren: { r: red, b: blue, glow: glow } };
   return root3;
 }
+/* ---- Blender nature pack (tools/blender/nature.py): palms, trees, bushes, grass, rocks ---- */
+const WIND = { value: 0 };   // seconds, advanced by the renderer
+function floatAttr(a) {
+  if (a.array instanceof Float32Array && !a.normalized) return a.clone();
+  const n = a.count, k = a.itemSize, out = new Float32Array(n * k), g = ['getX', 'getY', 'getZ', 'getW'];
+  for (let i = 0; i < n; i++) for (let j = 0; j < k; j++) out[i * k + j] = a[g[j]](i);
+  return new THREE.BufferAttribute(out, k);
+}
+const natureMats = new Map();
+function natureMaterial(m) {
+  if (natureMats.has(m)) return natureMats.get(m);
+  let out = m;
+  if (/Leaves/.test(m.name)) {
+    // alpha-cutout foliage that sways a little in the wind (more at the tips, phase from the instance position)
+    out = m.clone(); out.transparent = false; out.alphaTest = 0.42; out.side = THREE.DoubleSide; out.depthWrite = true;
+    out.onBeforeCompile = (sh) => {
+      sh.uniforms.uWind = WIND;
+      sh.vertexShader = 'uniform float uWind;\nattribute float aSway;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec3 ip = floor(position * 0.25);
+        float sway = max(aSway - 0.4, 0.0) * 0.035;
+        transformed.x += sin(uWind * 1.6 + ip.x * 0.37 + ip.z * 0.21 + position.y * 0.6) * sway;
+        transformed.z += cos(uWind * 1.3 + ip.z * 0.31 + position.x * 0.8) * sway * 0.7;`);
+    };
+    out.customProgramCacheKey = () => 'tr-leaves';
+  } else if (/Rock/.test(m.name)) { out = m.clone(); out.vertexColors = true; out.side = THREE.FrontSide; }
+  else { out = m.clone(); out.side = THREE.FrontSide; }
+  out.userData.keep = true; natureMats.set(m, out);
+  return out;
+}
+const natureCache = {};
+function natureProto(name, pack) {
+  const ck = (pack || 'nature') + '|' + name;
+  if (natureCache[ck]) return natureCache[ck];
+  const g = ASSETS.gltf[pack || 'nature']; if (!g) return null;
+  const root = g.scene.getObjectByName(name); if (!root) return null;
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), parts = [];
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const geo = new THREE.BufferGeometry();
+    for (const k in o.geometry.attributes) geo.setAttribute(k, floatAttr(o.geometry.attributes[k]));
+    if (o.geometry.index) geo.setIndex(o.geometry.index.clone());
+    geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    geo.computeBoundingSphere(); geo.userData.keep = true;
+    parts.push({ geo: geo, mat: natureMaterial(o.material), leaves: /Leaves/.test(o.material.name) });
+  });
+  return (natureCache[ck] = parts);
+}
+
 /* road-work props from Blender; procedural fallback otherwise */
 function makeHazardModel(mat, type) {
   const name = type === 'barrel' ? 'drum' : type;

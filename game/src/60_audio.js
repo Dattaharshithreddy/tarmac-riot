@@ -61,6 +61,9 @@ function createSound() {
       case 'go': tone(880, 0.4, 'sine', 0.32); break;
       case 'busted': tone(260, 0.7, 'sawtooth', 0.3, 90); break;
       case 'finish': [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 'square', 0.14, null, i * 0.11)); break;
+      case 'firework': tone(900 + Math.random() * 600, 0.5, 'sine', 0.05, 200); setTimeout(() => noise(0.7, 'lowpass', 2400, 120, 0.45), 380); break;
+      case 'cannon': noise(0.35, 'lowpass', 1800, 200, 0.6); tone(120, 0.25, 'square', 0.2, 50); break;
+      case 'cheer': for (let k = 0; k < 6; k++) setTimeout(() => noise(1.6, 'bandpass', 1300 + k * 120, 700, 0.12), k * 220); [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.24, 'triangle', 0.12, null, 0.3 + i * 0.13)); break;
       case 'ui': tone(660, 0.05, 'square', 0.1); break;
       case 'buy': tone(700, 0.07, 'square', 0.12); tone(1050, 0.1, 'square', 0.12, null, 0.07); break;
       default: break;

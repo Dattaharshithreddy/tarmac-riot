@@ -45,10 +45,19 @@ objs = []
 x = 0.0
 for a in args:
     path, _, pose = a.partition('@')
+    path, _, only = path.partition('#')          # file.glb#palm+neem keeps just those objects, side by side
     before = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=path)
     new = [o for o in bpy.data.objects if o not in before]
     roots = [o for o in new if o.parent is None]
+    if only:
+        keep = only.split('+')
+        top = lambda o: o if o.parent is None else top(o.parent)
+        drop = [o for o in new if top(o).name.split('.')[0] not in keep]
+        for o in drop: bpy.data.objects.remove(o, do_unlink=True)
+        new = [o for o in new if o not in drop]
+        roots = [r for k in keep for r in new if r.parent is None and r.name.split('.')[0] == k]
+        for i, r in enumerate(roots): r.location = (i * float(os.environ.get('GAP', '7')), 0, 0)
     px, py, yaw = (0.0, 0.0, 30.0)
     if pose: v = [float(t) for t in pose.split(',')]; px, py, yaw = (v + [0, 0, 30])[:3]
     holder = bpy.data.objects.new('holder', None); sc.collection.objects.link(holder)
